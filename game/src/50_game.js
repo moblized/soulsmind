@@ -1,10 +1,19 @@
 // ===== game flow, saving, UI, main loop =====
 const KEY = 'rimebell.save.v1';
-const UPS = {
-  staff: { name: 'Temper the staff', what: 'Strikes hit harder', costs: [120, 300, 600] },
-  flask: { name: 'Deepen the flask', what: 'One more drink per rest', costs: [80, 160, 280, 480] },
-  lantern: { name: 'Feed the lantern', what: 'One more ember of health', costs: [100, 200, 350, 560] },
+// ---------- leveling: spend chimes at a brazier to raise one stat per level; each level costs more ----------
+const STATS = {
+  vit: { name: 'Vitality', cap: 15, label: 'Health', val: (v, S) => String(5 + shardCount(S) + v) },
+  mig: { name: 'Might', cap: 10, label: 'Strike damage', val: (v) => Math.round(100 * (1 + 0.15 * v)) + '%' },
+  spi: { name: 'Spirit', cap: 4, label: 'Flask drinks', val: (v) => String(2 + v) },
+  res: { name: 'Resonance', cap: 6, label: 'Peal', val: (v, S) => '\u00d7' + +(3 * (1 + 0.25 * v)).toFixed(2) + ' (' + pealStrikes(v, S) + ' hits)' },
 };
+const levelCost = (L) => Math.round(40 + 18 * L + 2.2 * L * L); // chimes to go from level L to L + 1
+const charLevel = (S) => 1 + S.stats.vit + S.stats.mig + S.stats.spi + S.stats.res;
+const shardCount = (S) => Object.keys(S.got).filter((k) => k.endsWith(':H')).length;
+const maxHpOf = (S) => 5 + shardCount(S) + S.stats.vit;
+const pealStrikes = (res, S) => Math.max(4, (S.relics.oath ? 6 : 8) - Math.floor(res / 2));
+// what the old brazier upgrades cost, refunded when an older save is loaded
+const OLD_UPS = { staff: [120, 300, 600], flask: [80, 160, 280, 480], lantern: [100, 200, 350, 560] };
 const RELICS = {
   spine: { name: "Matriarch's Spine", what: 'Your strikes reach a third farther.' },
   clapper: { name: 'The Swallowed Clapper', what: 'Your Peal mends one ember.' },
@@ -30,15 +39,21 @@ const Store = {
 };
 function freshSave() {
   return {
-    v: 3, abilities: { claws: false, dash: false, jump2: false }, maxHp: 5, lit: { 'gate:3,12': 1 }, got: {}, visited: {},
+    v: 4, abilities: { claws: false, dash: false, jump2: false }, lit: { 'gate:3,12': 1 }, got: {}, visited: {},
     boss: false, mini: false, done: false, warden: false, knight: false, done2: false, time: 0, deaths: 0,
-    chimes: 0, echo: null, up: { staff: 0, flask: 0, lantern: 0 }, relics: { spine: false, clapper: false, wardlamp: false, oath: false },
+    chimes: 0, echo: null, stats: { vit: 0, mig: 0, spi: 0, res: 0 }, relics: { spine: false, clapper: false, wardlamp: false, oath: false },
     brazier: { room: 'gate', x: 3 * T + T / 2 + 8, y: 13 * T - 22, key: 'gate:3,12' },
   };
 }
 function normalizeSave(s) {
   const f = freshSave(); if (!s || typeof s !== 'object' || !ROOMS[(s.brazier || {}).room]) return f;
-  return Object.assign(f, s, { v: 3, abilities: Object.assign(f.abilities, s.abilities || {}), up: Object.assign(f.up, s.up || {}), relics: Object.assign(f.relics, s.relics || {}) });
+  const n = Object.assign(f, s, { v: 4, abilities: Object.assign(f.abilities, s.abilities || {}), stats: Object.assign(f.stats, s.stats || {}), relics: Object.assign(f.relics, s.relics || {}) });
+  if (n.up) { // older saves bought fixed upgrades; give the chimes back so they can be spent on levels
+    for (const k in OLD_UPS) for (let i = 0; i < (n.up[k] || 0); i++) n.chimes += OLD_UPS[k][i] || 0;
+    delete n.up;
+  }
+  delete n.maxHp;
+  return n;
 }
 function persist() { if (G.save) Store.set(G.save); }
 // device settings live apart from the journey, so a new journey keeps them
@@ -216,7 +231,7 @@ function collect(k) {
     S.relics[k.relic] = true; toast(RELICS[k.relic].name, 'Boss relic. ' + RELICS[k.relic].what);
     if (k.relic === 'oath' && !S.done2) { S.done2 = true; later(0.6, () => showEnd(2), true); }
   }
-  else { S.maxHp++; p.maxHp = S.maxHp; p.hp = p.maxHp; toast('Ember Shard', 'Your lantern holds one more ember.'); }
+  else { p.maxHp = maxHpOf(S); p.hp = p.maxHp; toast('Ember Shard', 'Your lantern holds one more ember.'); }
   persist();
 }
 function setCheckpoint(b) { G.save.brazier = { room: G.room.id, x: b.x + 8, y: b.y - G.player.h, key: b.key }; }
@@ -228,29 +243,49 @@ function kindle(b) {
 function restAt(b) {
   const p = G.player; setCheckpoint(b); p.hp = p.maxHp; p.flask = maxFlask(); persist(); Sfx.play('brazier');
   const x = p.x, y = p.y, face = p.face; loadRoom(G.room.id, { x, y }); p.face = face;
-  G.state = 'menu'; renderBrazier(); show('brazier', true);
+  Lv.pend = { vit: 0, mig: 0, spi: 0, res: 0 }; G.state = 'menu'; renderBrazier(); show('brazier', true);
   try { $('btn-leave').focus({ preventScroll: true }); } catch (e) {}
 }
 function closeBrazier() { if (G.state !== 'menu') return; show('brazier', false); G.state = 'play'; blurAll(); }
-function renderBrazier() {
-  const S = G.save, box = $('bz-ups'); $('bz-chimes').textContent = S.chimes + (S.chimes === 1 ? ' chime to spend' : ' chimes to spend');
-  box.textContent = '';
-  for (const k in UPS) {
-    const u = UPS[k], cost = u.costs[S.up[k]], btn = document.createElement('button'); btn.type = 'button'; btn.className = 'up';
-    const a = document.createElement('b'), w = document.createElement('span'), c = document.createElement('i');
-    a.textContent = u.name + (S.up[k] ? ' +' + S.up[k] : ''); w.textContent = cost === undefined ? 'As far as it will go' : u.what; c.textContent = cost === undefined ? 'Done' : cost + ' chimes';
-    btn.append(a, w, c); btn.disabled = cost === undefined || S.chimes < cost;
-    btn.addEventListener('click', () => buy(k)); box.appendChild(btn);
-  }
+// the level-up screen: allot points with + and -, see the cost and the effect, then confirm
+const Lv = { pend: { vit: 0, mig: 0, spi: 0, res: 0 } };
+function pendLevels() { const q = Lv.pend; return q.vit + q.mig + q.spi + q.res; }
+function pendCost() { const L = charLevel(G.save); let c = 0; for (let i = 0; i < pendLevels(); i++) c += levelCost(L + i); return c; }
+function allot(k, d) {
+  const S = G.save, q = Lv.pend, nv = S.stats[k] + q[k] + d;
+  if (d < 0 && q[k] <= 0) return;
+  if (d > 0 && (nv > STATS[k].cap || S.chimes - pendCost() < levelCost(charLevel(S) + pendLevels()))) { Sfx.play('deny'); return; }
+  q[k] += d; Sfx.play('ui'); renderBrazier();
 }
-function buy(k) {
-  const S = G.save, cost = UPS[k].costs[S.up[k]];
-  if (cost === undefined || S.chimes < cost) { Sfx.play('deny'); return; }
-  S.chimes -= cost; S.up[k]++;
-  if (k === 'lantern') { S.maxHp++; G.player.maxHp = S.maxHp; G.player.hp = S.maxHp; }
-  if (k === 'flask') G.player.flask = maxFlask();
-  persist(); Sfx.play('buy'); renderBrazier();
-  try { $('btn-leave').focus({ preventScroll: true }); } catch (e) {}
+function confirmLevel() {
+  const S = G.save, p = G.player, n = pendLevels(); if (!n) return;
+  S.chimes -= pendCost(); for (const k in Lv.pend) { S.stats[k] += Lv.pend[k]; Lv.pend[k] = 0; }
+  p.maxHp = maxHpOf(S); p.hp = p.maxHp; p.flask = maxFlask(); persist();
+  Sfx.play('buy'); buzz(60); ringFx(p.x + p.w / 2, p.y + p.h / 2, 60, '#ffcf7a', 0.6); burst(p.x + p.w / 2, p.y + p.h / 2, 18, 120, '#ffcf7a', 0.8, 2.5, -40);
+  renderBrazier(); note('Level ' + charLevel(S));
+}
+function renderBrazier() {
+  const S = G.save, L = charLevel(S), P = pendLevels(), cost = pendCost(), left = S.chimes - cost, next = levelCost(L + P);
+  const keep = document.activeElement && document.activeElement.id;
+  $('lv-level').textContent = P ? L + ' \u2192 ' + (L + P) : String(L);
+  $('lv-chimes').textContent = P ? S.chimes + ' \u2192 ' + left : String(S.chimes);
+  $('lv-next').textContent = next + ' chimes'; $('lv-next').classList.toggle('short', left < next);
+  const ok = $('btn-lv-ok'); ok.disabled = !P; ok.textContent = P ? 'Level up (' + cost + ')' : 'Level up';
+  const box = $('lv-stats'); box.textContent = '';
+  for (const k in STATS) {
+    const st = STATS[k], cur = S.stats[k], nv = cur + Lv.pend[k], row = document.createElement('div'); row.className = 'lv-row' + (Lv.pend[k] ? ' up' : '');
+    const minus = document.createElement('button'), plus = document.createElement('button'), info = document.createElement('div');
+    minus.type = plus.type = 'button'; minus.className = plus.className = 'lv-btn';
+    minus.id = 'lv-' + k + '-minus'; plus.id = 'lv-' + k + '-plus'; minus.textContent = '\u2212'; plus.textContent = '+';
+    minus.setAttribute('aria-label', 'Lower ' + st.name); plus.setAttribute('aria-label', 'Raise ' + st.name);
+    minus.disabled = !Lv.pend[k]; plus.disabled = nv >= st.cap || left < next;
+    minus.addEventListener('click', () => allot(k, -1)); plus.addEventListener('click', () => allot(k, 1));
+    const name = document.createElement('b'), eff = document.createElement('span');
+    name.textContent = st.name + '  ' + (Lv.pend[k] ? cur + ' \u2192 ' + nv : cur) + (nv >= st.cap ? ' (max)' : '');
+    eff.textContent = st.label + ' ' + (Lv.pend[k] ? st.val(cur, S) + ' \u2192 ' + st.val(nv, S) : st.val(cur, S));
+    info.className = 'lv-info'; info.append(name, eff); row.append(minus, info, plus); box.appendChild(row);
+  }
+  try { const el = keep && $(keep); (el && !el.disabled ? el : $(P ? 'btn-lv-ok' : 'lv-vit-plus').disabled ? $('btn-leave') : $(P ? 'btn-lv-ok' : 'lv-vit-plus')).focus({ preventScroll: true }); } catch (e) {}
 }
 
 function resolveCombat() {
@@ -363,7 +398,7 @@ function showTitle() {
 }
 function beginPlay() {
   show('title', false); blurAll();
-  const p = (G.player = newPlayer()), b = G.save.brazier; p.maxHp = p.hp = G.save.maxHp; p.flask = maxFlask();
+  const p = (G.player = newPlayer()), b = G.save.brazier; p.maxHp = p.hp = maxHpOf(G.save); p.flask = maxFlask();
   G.fadeA = 1; G.fade = { dir: -1, speed: 2.2 };
   loadRoom(b.room, { x: b.x, y: b.y }); G.state = 'play'; enterBanner(0); persist();
 }
@@ -372,7 +407,7 @@ function continueGame() { G.save = normalizeSave(Store.get()); beginPlay(); }
 function pause() {
   if (G.state !== 'play') return; G.state = 'pause'; show('pause', true); drawMap();
   const S = G.save, own = Object.keys(RELICS).filter((k) => S.relics[k]).map((k) => RELICS[k].name + ': ' + RELICS[k].what);
-  $('relics').textContent = (own.length ? own.join(' ') : 'No relics yet. Bosses carry them.') + ' Staff +' + S.up.staff + ', flask ' + maxFlask() + ', ' + S.chimes + ' chimes.';
+  $('relics').textContent = (own.length ? own.join(' ') : 'No relics yet. Bosses carry them.') + ' Level ' + charLevel(S) + ': ' + Object.keys(STATS).map((k) => STATS[k].name + ' ' + S.stats[k]).join(', ') + '. ' + S.chimes + ' chimes.';
   if (G.app) { const v = appVersion(); $('up-note').textContent = v ? 'Version ' + v : ''; }
   Updater.showIfDue();
   const locked = !!(G.boss && bossAwake(G.boss)); $('btn-rest').disabled = locked;
@@ -511,7 +546,7 @@ function bindUI() {
   on('btn-rest', () => { if (G.boss && bossAwake(G.boss)) return; show('pause', false); G.state = 'trans'; fadeOut(0.25, () => respawnAtBrazier(true)); });
   on('btn-pvib', toggleVib);
   on('btn-quit', () => { persist(); showTitle(); });
-  on('btn-ok', dismissToast); on('btn-leave', closeBrazier);
+  on('btn-ok', dismissToast); on('btn-leave', closeBrazier); on('btn-lv-ok', confirmLevel);
   on('btn-up-go', () => Updater.primary()); on('btn-up-later', () => Updater.hide());
   on('btn-pupdate', () => { const b = bridge(); if (b) { $('up-note').textContent = 'Checking GitHub for updates…'; b.checkUpdate(); } });
   on('btn-keep', () => { show('end', false); G.state = 'play'; blurAll(); });
@@ -553,7 +588,7 @@ function start(data) {
 window.__rimebell = {
   G, Input, ROOMS, PH, T, STEP, View, ARENA, Sfx, tick, loadRoom, updatePlayer, hazardHit, newPlayer, freshSave, beginPlay, newGame, showTitle,
   appUpdate, updateProgress, updateStatus, Updater,
-  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, buy, PIT, setRnd(f) { rnd = f; },
+  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, levelCost, charLevel, maxHpOf, PIT, setRnd(f) { rnd = f; },
 };
 try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ save: G.save, playing: G.state !== 'title' && G.state !== 'boot' })); } catch (e) {}
 (function boot() {

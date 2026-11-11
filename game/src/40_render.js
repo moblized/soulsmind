@@ -407,15 +407,16 @@ function drawSnow(c, dt) {
 function drawHUD(c) {
   const a = View.area, p = G.player, t = G.time; if (!p || G.state === 'title') return;
   const x0 = a.x + 18 + View.inL, y0 = a.y + 22;
+  const gap = p.maxHp > 10 ? Math.max(12, Math.floor(210 / p.maxHp)) : 21;
   for (let i = 0; i < p.maxHp; i++) {
-    const x = x0 + i * 21;
+    const x = x0 + i * gap;
     if (i < p.hp) { c.fillStyle = '#e8641b'; flamePath(c, x, y0, 9); c.fill(); c.fillStyle = '#ffb347'; flamePath(c, x, y0 + 1.5, 6); c.fill(); c.fillStyle = '#fff0c4'; flamePath(c, x, y0 + 3, 2.8); c.fill(); }
     else { c.strokeStyle = 'rgba(200,222,236,0.4)'; c.lineWidth = 1.4; flamePath(c, x, y0, 8); c.stroke(); }
   }
   const rm = resMax(), full = p.res >= rm, ry = y0 + 19;
   for (let i = 0; i < rm; i++) { c.fillStyle = i < p.res ? (full ? (Math.sin(t * 10) > 0 ? '#fff0b0' : '#e2b64f') : '#e2b64f') : 'rgba(220,235,245,0.2)'; c.fillRect(x0 - 8 + i * 10, ry, 7, 3.5); }
   // ember flask and chimes
-  const fx = x0 + p.maxHp * 21 + 6, mf = maxFlask();
+  const fx = x0 + p.maxHp * gap + 6, mf = maxFlask();
   for (let i = 0; i < mf; i++) {
     const x = fx + i * 13; c.strokeStyle = 'rgba(230,241,246,0.75)'; c.lineWidth = 1.3;
     c.beginPath(); c.moveTo(x + 2.5, y0 - 8); c.lineTo(x + 2.5, y0 - 4); c.lineTo(x, y0 - 1); c.lineTo(x, y0 + 7); c.lineTo(x + 8, y0 + 7); c.lineTo(x + 8, y0 - 1); c.lineTo(x + 5.5, y0 - 4); c.lineTo(x + 5.5, y0 - 8); c.closePath();

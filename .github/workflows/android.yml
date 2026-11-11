@@ -8,9 +8,14 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   apk:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -19,9 +24,14 @@ jobs:
           node-version: 22
 
       - name: Install Android packaging tools
+        # Rebuilding the man-db index after an install can stall Ubuntu runners for many minutes; skip it.
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
+          echo 'man-db man-db/auto-update boolean false' | sudo debconf-set-selections
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
 
       - name: Build the APK
         # versionCode = 100 + run number. The app reads it from the release notes to decide whether to update.

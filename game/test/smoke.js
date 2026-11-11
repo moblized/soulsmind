@@ -61,10 +61,19 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
       const cap = document.getElementById('caption').textContent;
       step(3, { up: true }); step(3, {});
       ok('pushing up rests and opens the menu', G.state === 'menu' && G.player.hp === G.player.maxHp && G.player.flask === 2 && G.enemies.length > 0, 'caption "' + cap + '" foes ' + G.enemies.length);
-      const btns = [...document.querySelectorAll('#bz-ups button')]; const labels = btns.map((b) => b.textContent);
-      btns[0].click(); [...document.querySelectorAll('#bz-ups button')][1].click(); [...document.querySelectorAll('#bz-ups button')][2].click();
-      ok('upgrades spend chimes', G.save.chimes === 500 - 120 - 80 - 100 && G.save.up.staff === 1 && G.save.up.flask === 1 && G.save.up.lantern === 1 && G.player.maxHp === 6 && G.player.flask === 3, G.save.chimes + ' left; ' + labels.join(' | '));
-      G.save.chimes = 0; R.buy('staff'); ok('cannot buy without chimes', G.save.up.staff === 1);
+      const click = (id) => document.getElementById(id).click();
+      ok('the level-up screen shows level 1 and the next cost', document.getElementById('lv-level').textContent === '1' && document.getElementById('lv-next').textContent === R.levelCost(1) + ' chimes', document.getElementById('lv-next').textContent);
+      click('lv-vit-plus'); click('lv-vit-plus'); click('lv-mig-plus'); click('lv-spi-plus'); click('lv-spi-minus');
+      const cost3 = R.levelCost(1) + R.levelCost(2) + R.levelCost(3), shown = document.getElementById('lv-chimes').textContent;
+      ok('allotting shows the total cost before confirming', G.save.chimes === 500 && shown === '500 \u2192 ' + (500 - cost3) && document.getElementById('lv-level').textContent === '1 \u2192 4', shown);
+      click('btn-lv-ok');
+      ok('confirming spends chimes and raises stats', G.save.chimes === 500 - cost3 && G.save.stats.vit === 2 && G.save.stats.mig === 1 && R.charLevel(G.save) === 4 && G.player.maxHp === 7 && G.player.hp === 7, G.save.chimes + ' left, level ' + R.charLevel(G.save));
+      ok('each level costs more than the last', R.levelCost(1) < R.levelCost(2) && R.levelCost(2) < R.levelCost(10), [1, 2, 5, 10, 20].map((l) => l + ':' + R.levelCost(l)).join(' '));
+      G.save.chimes = 0; R.render(1 / 60); click('btn-leave'); R.restAt(G.room.braziers[0]);
+      ok('without enough chimes + is disabled', document.getElementById('lv-vit-plus').disabled && document.getElementById('btn-lv-ok').disabled);
+      G.save.chimes = 99999; G.save.stats.spi = 3; R.restAt(G.room.braziers[0]); click('lv-spi-plus'); const capped = document.getElementById('lv-spi-plus').disabled;
+      click('btn-leave'); ok('stats stop at their cap, and leaving drops unconfirmed points', capped && G.save.stats.spi === 3 && G.state === 'play');
+      G.save.stats.spi = 0; G.save.chimes = 0; R.restAt(G.room.braziers[0]);
       R.render(1 / 60); document.getElementById('btn-leave').click(); ok('leaving returns to play', G.state === 'play');
 
       // 5. the Rime Matriarch: wakes when you drop in, fights, drops loot and frees the claws
@@ -105,7 +114,11 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
       ok('back resumes', R.back() === true && G.state === 'play'); R.sleep(); ok('sleep pauses and saves', G.state === 'pause'); R.wake(); R.resume();
       R.showTitle(); ok('back on title is not handled', R.back() === false);
       document.getElementById('btn-continue').click(); step(60, {});
-      ok('continue restores progress', G.state === 'play' && G.save.relics.clapper && G.save.relics.spine && G.save.up.staff === 0, rel);
+      ok('continue restores progress', G.state === 'play' && G.save.relics.clapper && G.save.relics.spine && R.charLevel(G.save) === 1, rel);
+      // an older save with the fixed upgrades gets those chimes back
+      const old = JSON.parse(localStorage.getItem('rimebell.save.v1')); old.v = 3; old.up = { staff: 1, flask: 1, lantern: 1 }; old.maxHp = 6; old.chimes = 10; delete old.stats; localStorage.setItem('rimebell.save.v1', JSON.stringify(old));
+      R.showTitle(); document.getElementById('btn-continue').click(); step(10, {});
+      ok('old upgrades are refunded as chimes', G.save.chimes === 10 + 120 + 80 + 100 && R.charLevel(G.save) === 1 && G.player.maxHp === R.maxHpOf(G.save) && !('up' in G.save), G.save.chimes + ' chimes, max health ' + G.player.maxHp);
     } catch (e) { log.push('EXCEPTION ' + e.stack); }
     return { log, states: [...seenStates], bossStates: [...bossStates].sort(), rooms: [...rooms] };
   });

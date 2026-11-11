@@ -3,10 +3,10 @@ const PH = {
   RUN: 140, GACC: 1900, AACC: 1400, GFRIC: 2200, AFRIC: 500, GRAV: 1500, MAXFALL: 520, JUMP: 490,
   WSLIDE: 70, WJX: 165, WJY: 455, WLOCK: 0.12, DASHV: 440, DASHT: 0.2, DASHCD: 0.45, RESMAX: 8, DODGE: 0.17, HEALT: 0.85, JUMP2: 430,
 };
-const resMax = () => (G.save && G.save.relics.oath ? 6 : PH.RESMAX);
+const resMax = () => (G.save ? pealStrikes(G.save.stats.res, G.save) : PH.RESMAX);
 const flaskHeal = () => (G.save.relics.wardlamp ? 3 : 2);
-const maxFlask = () => 2 + G.save.up.flask;
-const strikeDmg = (peal) => (peal ? 3 + G.save.up.staff * 2 : 1 + G.save.up.staff);
+const maxFlask = () => 2 + G.save.stats.spi;
+const strikeDmg = (peal) => { const st = G.save.stats; return (peal ? 3 * (1 + 0.25 * st.res) : 1) * (1 + 0.15 * st.mig); };
 function newPlayer() {
   return {
     x: 0, y: 0, w: 12, h: 22, vx: 0, vy: 0, face: 1, onGround: false, onOneWay: false, hitWall: 0, hitCeil: false, dropThrough: false,

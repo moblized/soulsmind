@@ -15,7 +15,9 @@ Every push to `main` builds a fresh APK. On your phone, open the latest release 
 - **Death costs you.** Your chimes stay where you fell. Reach them before you die again or they are gone.
 - **The flask is limited.** It mends two embers per drink, only while you stand still. It refills only when you rest.
 - **Resting is a choice.** Push up at a lit brazier to rest. Resting heals you, refills the flask, opens the upgrade menu, and brings every enemy you killed back to life.
-- **Bosses drop loot.** Each boss drops a heap of chimes and a relic with a lasting effect. Spend chimes at braziers on a stronger staff, a deeper flask, or more health.
+- **Bosses drop loot.** Each boss drops a heap of chimes and a relic with a lasting effect.
+- **Level up at braziers.** Rest, then spend chimes on levels. Each level raises one stat and costs more than the last: **Vitality** (health), **Might** (strike damage), **Spirit** (flask drinks) or **Resonance** (a stronger Peal that charges faster). Points can be shuffled before you confirm.
+- **Updates itself.** The Android app checks this repository's releases on launch and offers new versions; the pause menu shows the version and can check by hand.
 - **Heavy hits take two embers.** A dash briefly passes through attacks.
 - **Shields:** strike a knight from behind or from above, punish his thrust, or break his guard with a Peal.
 

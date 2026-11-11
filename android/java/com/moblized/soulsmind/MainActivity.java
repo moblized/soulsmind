@@ -41,15 +41,15 @@ import java.util.regex.Pattern;
  * Hosts the game page full screen. The page and everything it needs are packed in assets/www and served
  * from a private https origin, so the game runs offline and its saves (localStorage) stay on the phone.
  *
- * Updates: on launch (and when it comes back after six hours) the app asks GitHub for the latest release of
- * moblized/soulsmind. If its versionCode is higher, the game shows an update card; "Update now" downloads the
+ * Updates: on launch (and when it comes back after six hours) the app asks GitHub for the recent releases of
+ * moblized/soulsmind and takes the one with the highest versionCode. If that is newer, the game shows an update card; "Update now" downloads the
  * APK and hands it to Android's package installer, which asks the player to confirm. Saves survive the update.
  */
 public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String ORIGIN = "https://" + HOST + "/";
 
-    private static final String RELEASES = "https://api.github.com/repos/moblized/soulsmind/releases/latest";
+    private static final String RELEASES = "https://api.github.com/repos/moblized/soulsmind/releases?per_page=20";
     private static final String ACTION_INSTALL_STATUS = "com.moblized.soulsmind.INSTALL_STATUS";
     private static final long RECHECK_MS = 6L * 60 * 60 * 1000;
 
@@ -248,18 +248,27 @@ public class MainActivity extends Activity {
                     c.setRequestProperty("Accept", "application/vnd.github+json");
                     c.setRequestProperty("User-Agent", "SoulsMind-Android");
                     int code = c.getResponseCode();
-                    if (code == 404) { if (manual) status("latest", "No releases are published yet. You have " + installedName() + "."); return; }
                     if (code != 200) { if (manual) status("error", "GitHub answered " + code + ". Try again in a while."); return; }
-                    JSONObject rel = new JSONObject(readAll(c.getInputStream()));
-                    String apk = null;
-                    JSONArray assets = rel.optJSONArray("assets");
-                    if (assets != null) for (int i = 0; i < assets.length(); i++) {
-                        JSONObject a = assets.getJSONObject(i);
-                        if (a.optString("name").endsWith(".apk")) apk = a.optString("browser_download_url");
+                    // builds can finish out of order, so take the highest versionCode rather than the newest release
+                    JSONArray list = new JSONArray(readAll(c.getInputStream()));
+                    String apk = null, version = null;
+                    int remote = 0;
+                    for (int r = 0; r < list.length(); r++) {
+                        JSONObject rel = list.getJSONObject(r);
+                        if (rel.optBoolean("draft") || rel.optBoolean("prerelease")) continue;
+                        int rc = releaseCode(rel.optString("body"), rel.optString("tag_name"));
+                        String url = null;
+                        JSONArray assets = rel.optJSONArray("assets");
+                        if (assets != null) for (int i = 0; i < assets.length(); i++) {
+                            JSONObject a = assets.getJSONObject(i);
+                            if (a.optString("name").endsWith(".apk")) url = a.optString("browser_download_url");
+                        }
+                        if (url == null || rc <= remote) continue;
+                        remote = rc;
+                        apk = url;
+                        Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)").matcher(rel.optString("name"));
+                        version = m.find() ? m.group(1) : rel.optString("tag_name");
                     }
-                    int remote = releaseCode(rel.optString("body"), rel.optString("tag_name"));
-                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)").matcher(rel.optString("name"));
-                    String version = m.find() ? m.group(1) : rel.optString("tag_name");
                     if (apk != null && remote > installedCode()) {
                         updateUrl = apk;
                         JSONObject info = new JSONObject();
