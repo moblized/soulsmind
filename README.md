@@ -16,6 +16,7 @@ Every push to `main` builds a fresh APK. On your phone, open the latest release 
 - **Death costs you.** Your chimes stay where you fell. Reach them before you die again or they are gone.
 - **The flask is limited.** It mends two embers per drink, only while you stand still. It refills only when you rest.
 - **Resting is a choice.** Push up at a lit brazier to rest. Resting heals you, refills the flask, opens the upgrade menu, and brings every enemy you killed back to life.
+- **Chime farms.** Each level has a hoard room whose door opens after that level's first boss: the Offering Hoard (off Pilgrim's Gate), the Tithe Vault (high on the Old Road's east wall) and the Glimmer Well (off the Switchback Stair). A pile of eight harmless hoardlings sleeps on a heap of chimes in a pit. Strike the pile (a Peal or a heavy weapon takes most of it at once), chase down the rest, then rest at the brazier by the door and the pile is back. One pile pays 80 / 192 / 360 chimes in Levels 1 / 2 / 3 (more with the Chime Purse).
 - **Bosses drop loot.** Each boss drops a heap of chimes and a relic with a lasting effect.
 - **Level up at braziers.** Rest, then spend chimes on levels. Each level raises one stat and costs more than the last: **Vitality** (health), **Might** (strike damage), **Spirit** (flask drinks) or **Resonance** (a stronger Peal that charges faster). Points can be shuffled before you confirm.
 - **Change weapon and gear at braziers.** The Equipment tab holds one weapon, one armour and three relics.

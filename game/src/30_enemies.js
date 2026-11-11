@@ -15,6 +15,7 @@ function updateEnemies(dt) {
     if (e.dead) { G.enemies.splice(i, 1); continue; }
     e.t += dt; e.flash = Math.max(0, e.flash - dt);
     const ecx = e.x + e.w / 2, ecy = e.y + e.h / 2, dx = pcx - ecx, dy = pcy - ecy, d = Math.hypot(dx, dy) || 1;
+    if (FOES[e.type].hoard) { updateHoardling(e, dt, dx); continue; }
     if (FOES[e.type].dusk) { updateDuskFoe(e, dt, dx, dy, d); continue; }
     if (FOES[e.type].star) { updateStarFoe(e, dt, dx, dy, d); continue; }
     if (e.type === 'r') {
@@ -67,12 +68,13 @@ function hurtEnemy(e, dmg, dirX, dirY) {
   e.hp -= dmg; e.flash = 0.12; e.stun = heavy ? 0.45 : 0.22; if (heavy) { dirX *= 1.5; G.shake = Math.max(G.shake, 4); }
   if (e.type === 'r' || FOES[e.type].dusk || FOES[e.type].ground) { const kb = e.type === 'k' ? 70 : 140; e.vx = dirX * kb; e.vy = dirY < 0 ? -200 : -100; e.mode = e.type === 'k' ? 'walk' : e.mode; }
   else { e.vx = dirX * 190; e.vy = dirY * 190; e.cast = 0; }
-  const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+  const cx = e.x + e.w / 2, cy = e.y + e.h / 2, F = FOES[e.type];
   burst(cx, cy, 6, 130, '#e9fbff', 0.3, 2);
+  if (F.hoard) { e.mode = 'awake'; wakeHoard(cx, cy); }
   if (e.hp <= 0) {
-    e.dead = true; Sfx.play('kill'); dropChimes(cx, cy, FOES[e.type].chimes);
-    const F = FOES[e.type], col = F.star ? '#d9d2ff' : F.dusk ? '#d8c9a8' : e.type === 'r' ? '#dfeef5' : '#a9dff0';
-    burst(cx, cy, 16, 150, col, 0.6, 2.5, 150); ringFx(cx, cy, 26, F.star ? '#fff1c9' : F.dusk ? '#ffcf7a' : '#cfefff', 0.3);
+    e.dead = true; Sfx.play('kill'); dropChimes(cx, cy, e.chimes || F.chimes);
+    const col = F.hoard ? '#ffd27a' : F.star ? '#d9d2ff' : F.dusk ? '#d8c9a8' : e.type === 'r' ? '#dfeef5' : '#a9dff0';
+    burst(cx, cy, 16, 150, col, 0.6, 2.5, 150); ringFx(cx, cy, 26, F.star || F.hoard ? '#fff1c9' : F.dusk ? '#ffcf7a' : '#cfefff', 0.3);
   } else Sfx.play('hit');
 }
 

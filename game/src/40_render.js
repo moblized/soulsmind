@@ -195,6 +195,7 @@ function drawProps(c) {
       if (Math.random() < 0.12) part(b.x + (Math.random() - 0.5) * 8, b.y - 30, (Math.random() - 0.5) * 12, -30 - Math.random() * 30, 0.9, 1.6, '#ffb347');
     } else { c.fillStyle = '#5d7fa8'; c.fillRect(b.x - 5, b.y - 22, 3, 1.5); c.fillRect(b.x + 1, b.y - 22.5, 3, 1.5); }
   }
+  if (room.hoard) drawHoardHeap(c, room.hoard, t);
   for (const k of room.pickups) {
     const y = k.y + Math.sin(t * 2.4 + k.x) * 3;
     glow(c, k.x, y, 46, k.kind === 'H' || k.kind === 'E' ? 'rgba(255,160,60,0.32)' : k.kind === 'M' ? 'rgba(200,185,255,0.4)' : 'rgba(140,220,240,0.32)');
@@ -316,6 +317,7 @@ function drawPlayer(c) {
 function drawEnemies(c) {
   const t = G.time;
   for (const e of G.enemies) {
+    if (FOES[e.type].hoard) { drawHoardling(c, e, t); continue; }
     if (FOES[e.type].dusk) { drawDuskFoe(c, e, t); continue; }
     if (FOES[e.type].star) { drawStarFoe(c, e, t); continue; }
     const cx = e.x + e.w / 2, white = e.flash > 0;

@@ -43,11 +43,11 @@ const armor = () => ITEMS[(G.save && G.save.equip.armor) || 'coat'];
 const RELICS = ITEMS; // boss relics are items too
 // each boss: the save flag it sets, its relic and weapon, how many chimes it drops, and the ability it sits on (if any)
 const BOSSES = {
-  cellar: { flag: 'mini', spawn: () => spawnMatriarch(), A: () => PIT, relic: 'spine', chimes: 80, hides: '1', line: 'The pit falls quiet' },
+  cellar: { flag: 'mini', spawn: () => spawnMatriarch(), A: () => PIT, relic: 'spine', chimes: 80, hides: '1', line: 'The pit falls quiet', farm: 'gate' },
   sanctum: { flag: 'boss', spawn: null, A: () => ARENA, relic: 'clapper', item: 'censer', chimes: 150, line: 'The Abbot is silent at last' },
-  barrow: { flag: 'warden', spawn: () => spawnWarden(), A: () => WARD, relic: 'wardlamp', chimes: 220, hides: 'J', line: 'The lantern goes dark' },
+  barrow: { flag: 'warden', spawn: () => spawnWarden(), A: () => WARD, relic: 'wardlamp', chimes: 220, hides: 'J', line: 'The lantern goes dark', farm: 'oldroad' },
   court: { flag: 'knight', spawn: () => spawnVarhelm(), A: () => COURT, relic: 'oath', item: 'greatsword', chimes: 420, line: 'The sun over Duskmarch sets at last' },
-  silk: { flag: 'moth', spawn: () => spawnNightMoth(), A: () => MOTHA, relic: 'locket', chimes: 320, hides: 'M', line: 'The gallery goes dark' },
+  silk: { flag: 'moth', spawn: () => spawnNightMoth(), A: () => MOTHA, relic: 'locket', chimes: 320, hides: 'M', line: 'The gallery goes dark', farm: 'stair' },
   dome: { flag: 'astro', spawn: () => spawnOrren(), A: () => DOME, relic: 'lens', item: 'rod', chimes: 650, line: 'The kept stars go free' },
 };
 const ENDS = {
@@ -169,6 +169,7 @@ function loadRoom(id, spawn) {
     }
     else if (ch === 'E') { const id = (def.items || {})[x + ',' + y]; if (id && !S.own[id]) room.pickups.push(itemPickup(id, x * T + T / 2, y * T + T / 2)); }
     else if (FOES[ch]) spawnEnemy(ch, x, y);
+    else if (ch === 'P') spawnHoard(x, y);
     else if (ch === 'Z') { /* the Abbot arrives when the hero steps in */ }
     else if (ch === 'L') room.bell = { x: x * T + T / 2, y: (y + 1) * T, active: !!S.boss, drop: S.boss ? 1 : 0, swing: 0, hitId: -1 };
     else { clear = false; if (def.exits[ch]) (room.exitTiles[ch] = room.exitTiles[ch] || []).push({ x, y }); }
@@ -257,6 +258,7 @@ function bossDefeated() {
   if (room.hidden && !S.got[room.hidden.key]) { room.pickups.push(room.hidden); room.hidden = null; }
   if (room.bell) room.bell.active = true;
   for (const L in room.def.locks || {}) if (room.def.locks[L] === cfg.flag) later(1.2, () => openSeal(L));
+  if (cfg.farm) later(3.4, () => note('A hoard door has opened in ' + ROOMS[cfg.farm].name), true);
   banner(cfg.line);
   persist();
 }
@@ -426,7 +428,7 @@ function resolveCombat() {
     for (const e of G.enemies) if (!e.dead && e.dashHit !== p.dashId && overlap(cut, e)) { e.dashHit = p.dashId; hurtEnemy(e, dmg, p.dashDir * 0.4, 0); ringFx(e.x + e.w / 2, e.y + e.h / 2, 18, '#e8ddff', 0.25); }
     if (b && bossVulnerable(b) && b.dashHit !== p.dashId && overlap(cut, b)) { b.dashHit = p.dashId; hurtBoss(dmg); }
   }
-  for (const e of G.enemies) if (!e.dead && e.stun <= 0 && overlap(body, { x: e.x + 2, y: e.y + 2, w: e.w - 4, h: e.h - 3 })) { hurtPlayer(e.x + e.w / 2, false, 1); break; }
+  for (const e of G.enemies) if (!e.dead && e.stun <= 0 && !FOES[e.type].harmless && overlap(body, { x: e.x + 2, y: e.y + 2, w: e.w - 4, h: e.h - 3 })) { hurtPlayer(e.x + e.w / 2, false, 1); break; }
   for (const e of G.enemies) if (!e.dead && e.hit && overlap(body, e.hit)) { hurtPlayer(e.x + e.w / 2, false, e.hit.dmg); break; }
   if (b && b.hit && overlap(body, b.hit)) hurtPlayer(b.x + b.w / 2, false, b.hit.dmg);
   const touch = b ? bossTouch(b) : 0;
@@ -701,7 +703,7 @@ function start(data) {
 window.__rimebell = {
   G, Input, ROOMS, PH, T, STEP, View, ARENA, Sfx, tick, loadRoom, updatePlayer, hazardHit, newPlayer, freshSave, beginPlay, newGame, showTitle,
   appUpdate, updateProgress, updateStatus, Updater,
-  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, equipItem, brazierTab, ITEMS, weapon, armor, eq, levelCost, charLevel, maxHpOf, PIT, MOTHA, DOME, spawnNightMoth, spawnOrren, maxFlask, strikeDmg, BOSSES, showEnd, setRnd(f) { rnd = f; },
+  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, equipItem, brazierTab, ITEMS, weapon, armor, eq, levelCost, charLevel, maxHpOf, PIT, MOTHA, DOME, HOARD_CHIMES, spawnNightMoth, spawnOrren, maxFlask, strikeDmg, BOSSES, showEnd, setRnd(f) { rnd = f; },
 };
 try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ save: G.save, playing: G.state !== 'title' && G.state !== 'boot' })); } catch (e) {}
 (function boot() {

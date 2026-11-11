@@ -41,6 +41,17 @@ const CASES = [
   ['bridge (return)', { claws: true, dash: true, jump2: true, glide: true }, { exit: 'b' }, { exits: ['a', 'b'] }, {}],
   ['bridge (from the pillar)', { claws: true, dash: true, jump2: true, glide: true }, { x: 28 * T, y: feet(15) }, { exits: ['a', 'b'] }, {}],
   ['dome', { claws: true, dash: true, jump2: true, glide: true }, { exit: 'a' }, { exits: ['a'] }, {}],
+  // the hoard rooms (chime farms), each sealed until its level's first boss falls
+  ['gate (hoard door open)', { claws: true }, { x: 2 * T, y: feet(13) }, { exits: ['a', 'b'] }, {}],
+  ['gate (hoard door sealed)', {}, { x: 2 * T, y: feet(13) }, { exits: ['a'] }, { exits: ['b'] }, { mini: false }],
+  ['hoard', { claws: true }, { exit: 'a' }, { exits: ['a'] }, {}],
+  ['hoard (from the pit, no claws)', {}, { x: 10 * T, y: feet(12) }, { exits: ['a'] }, {}],
+  ['oldroad (tithe door open)', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b', 'c', 'd'] }, {}],
+  ['oldroad (tithe door sealed)', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b', 'c'] }, { exits: ['d'] }, { warden: false }],
+  ['tithe', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'] }, {}],
+  ['stair (glimmer door open)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a', 'b', 'c'] }, {}],
+  ['stair (glimmer door sealed)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a', 'b'] }, { exits: ['c'] }, { moth: false }],
+  ['glimmer', { claws: true, dash: true, jump2: true, glide: true }, { exit: 'a' }, { exits: ['a'] }, {}],
 ];
 (async () => {
   const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--disable-gpu'] });
