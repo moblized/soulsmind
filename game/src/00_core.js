@@ -158,6 +158,7 @@ const Sfx = {
         case 'zap': this.noise(0.18, 0.12, 2600, 2, 4200); this.tone(1320, 0.14, 'square', 0.025, 660); break;
         case 'bolt': this.tone(1046.5, 0.16, 'sine', 0.05, 1568); this.noise(0.08, 0.07, 3000, 2); break;
         case 'glide': this.noise(0.25, 0.06, 900, 2, 500); break;
+        case 'warp': [392, 523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.bell(f, 0.06, 1.4, i * 0.07)); this.noise(0.6, 0.1, 600, 1, 2400); break;
         case 'die': this.tone(300, 0.9, 'triangle', 0.13, 50); this.noise(0.6, 0.18, 400, 0.6, 100); break;
       }
     } catch (e) {}

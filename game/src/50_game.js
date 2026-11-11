@@ -321,11 +321,56 @@ function confirmLevel() {
   renderBrazier(); note('Level ' + charLevel(S));
 }
 function renderBrazier() {
-  const lvl = Lv.tab !== 'equip';
-  $('tab-level').setAttribute('aria-selected', String(lvl)); $('tab-equip').setAttribute('aria-selected', String(!lvl));
-  $('tab-level').classList.toggle('on', lvl); $('tab-equip').classList.toggle('on', !lvl);
-  $('btn-lv-ok').hidden = !lvl;
-  if (lvl) renderLevel(); else renderEquip();
+  const tab = Lv.tab === 'equip' || Lv.tab === 'travel' ? Lv.tab : 'level';
+  for (const t of ['level', 'equip', 'travel']) { $('tab-' + t).setAttribute('aria-selected', String(tab === t)); $('tab-' + t).classList.toggle('on', tab === t); }
+  $('btn-lv-ok').hidden = tab !== 'level';
+  if (tab === 'level') renderLevel(); else if (tab === 'equip') renderEquip(); else renderTravel();
+}
+// ---------- travel: from a brazier, go to any other brazier you have lit ----------
+let BRAZIERS = null;
+function allBraziers() {
+  if (BRAZIERS) return BRAZIERS;
+  BRAZIERS = [];
+  for (const id in ROOMS) {
+    const def = ROOMS[id], g = buildRoom(def.w, def.h, def.build), here = [];
+    for (let y = 0; y < def.h; y++) for (let x = 0; x < def.w; x++) if (g[y][x] === 'B') here.push({ key: id + ':' + x + ',' + y, room: id, level: levelOf(id), x: x * T + T / 2, y: (y + 1) * T });
+    here.sort((a, b) => a.x - b.x);
+    here.forEach((b, i) => { b.name = def.name + (here.length === 2 ? (i ? ' (east)' : ' (west)') : here.length > 2 ? ' (' + (i + 1) + ')' : ''); });
+    BRAZIERS.push(...here);
+  }
+  BRAZIERS.sort((a, b) => a.level - b.level);
+  return BRAZIERS;
+}
+function renderTravel() {
+  const S = G.save, keep = document.activeElement && document.activeElement.id, lit = allBraziers().filter((b) => S.lit[b.key]);
+  summary([['Here', G.room.def.name], ['Lit', lit.length + ' of ' + allBraziers().length + ' braziers']]);
+  const box = $('lv-stats'); box.textContent = '';
+  const list = document.createElement('div'); list.className = 'eq-list';
+  let lv = 0;
+  for (const b of lit) {
+    if (b.level !== lv) { lv = b.level; const h = document.createElement('p'); h.className = 'tv-level'; h.textContent = 'Level ' + lv + ' \u00b7 ' + LEVELS[lv].name; list.appendChild(h); }
+    const here = S.brazier && S.brazier.key === b.key, btn = document.createElement('button');
+    btn.type = 'button'; btn.id = 'tv-' + b.key.replace(/[^a-z0-9]/gi, '-'); btn.className = 'eq-row' + (here ? ' on' : ''); btn.disabled = here;
+    const n = document.createElement('b'), w = document.createElement('span'), tag = document.createElement('i');
+    n.textContent = b.name; w.textContent = here ? 'You are resting here.' : 'Travel here and rest.'; tag.textContent = here ? 'Here' : 'Travel';
+    btn.append(n, w, tag); btn.addEventListener('click', () => travelTo(b.key)); list.appendChild(btn);
+  }
+  if (lit.length < 2) { const m = document.createElement('p'); m.className = 'tv-level'; m.textContent = 'Light more braziers and you can travel between them from any of them.'; list.appendChild(m); }
+  box.appendChild(list);
+  try { const el = keep && $(keep); (el && !el.disabled ? el : $('tab-travel')).focus({ preventScroll: true }); } catch (e) {}
+}
+function travelTo(key) {
+  const b = allBraziers().find((q) => q.key === key), S = G.save;
+  if (!b || !S.lit[key] || G.state !== 'menu' || (S.brazier && S.brazier.key === key)) return;
+  const from = levelOf(G.room.id), p = G.player;
+  show('brazier', false); G.state = 'trans'; Sfx.play('warp'); buzz(40);
+  burst(p.x + p.w / 2, p.y + p.h / 2, 24, 140, '#ffb347', 0.7, 2.5, -80); ringFx(p.x + p.w / 2, p.y + p.h / 2, 50, '#ffd27a', 0.5);
+  fadeOut(0.45, () => {
+    S.brazier = { room: b.room, x: b.x + 8, y: b.y - p.h, key: b.key };
+    loadRoom(b.room, { x: b.x + 8, y: b.y - p.h }); p.face = -1; p.hp = p.maxHp; p.flask = maxFlask(); persist();
+    G.state = 'play'; enterBanner(from); blurAll();
+    ringFx(b.x, b.y - 24, 60, '#ffb347', 0.6); burst(b.x, b.y - 20, 20, 110, '#ffb347', 0.8, 2.5, -60); Sfx.play('brazier');
+  });
 }
 function brazierTab(t) { Lv.tab = t; Lv.msg = ''; Sfx.play('ui'); renderBrazier(); }
 function summary(rows) {
@@ -661,7 +706,7 @@ function bindUI() {
   on('btn-pvib', toggleVib);
   on('btn-quit', () => { persist(); showTitle(); });
   on('btn-ok', dismissToast); on('btn-leave', closeBrazier); on('btn-lv-ok', confirmLevel);
-  on('tab-level', () => brazierTab('level')); on('tab-equip', () => brazierTab('equip'));
+  on('tab-level', () => brazierTab('level')); on('tab-equip', () => brazierTab('equip')); on('tab-travel', () => brazierTab('travel'));
   on('btn-up-go', () => Updater.primary()); on('btn-up-later', () => Updater.hide());
   on('btn-pupdate', () => { const b = bridge(); if (b) { $('up-note').textContent = 'Checking GitHub for updates…'; b.checkUpdate(); } });
   on('btn-keep', () => { show('end', false); G.state = 'play'; blurAll(); });
@@ -703,7 +748,7 @@ function start(data) {
 window.__rimebell = {
   G, Input, ROOMS, PH, T, STEP, View, ARENA, Sfx, tick, loadRoom, updatePlayer, hazardHit, newPlayer, freshSave, beginPlay, newGame, showTitle,
   appUpdate, updateProgress, updateStatus, Updater,
-  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, equipItem, brazierTab, ITEMS, weapon, armor, eq, levelCost, charLevel, maxHpOf, PIT, MOTHA, DOME, HOARD_CHIMES, spawnNightMoth, spawnOrren, maxFlask, strikeDmg, BOSSES, showEnd, setRnd(f) { rnd = f; },
+  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, equipItem, brazierTab, travelTo, allBraziers, ITEMS, weapon, armor, eq, levelCost, charLevel, maxHpOf, PIT, MOTHA, DOME, HOARD_CHIMES, spawnNightMoth, spawnOrren, maxFlask, strikeDmg, BOSSES, showEnd, setRnd(f) { rnd = f; },
 };
 try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ save: G.save, playing: G.state !== 'title' && G.state !== 'boot' })); } catch (e) {}
 (function boot() {
