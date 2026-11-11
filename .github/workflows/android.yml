@@ -24,10 +24,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
 
       - name: Build the APK
-        env:
-          VERSION_CODE: ${{ 100 + github.run_number }}
-          VERSION_NAME: 0.3.${{ github.run_number }}
-        run: ./android/build.sh
+        # versionCode = 100 + run number. The app reads it from the release notes to decide whether to update.
+        run: |
+          echo "VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=0.3.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          VERSION_CODE=$((100 + GITHUB_RUN_NUMBER)) VERSION_NAME="0.3.${GITHUB_RUN_NUMBER}" ./android/build.sh
 
       - uses: actions/upload-artifact@v4
         with:
@@ -38,8 +39,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="build-${{ github.run_number }}"
-          gh release create "$tag" build/soulsmind.apk \
-            --title "Souls Mind 0.3.${{ github.run_number }}" \
-            --notes "Installable APK built from ${GITHUB_SHA::7}. Open this page on your phone and tap soulsmind.apk." \
+          printf 'versionCode: %s\n\nInstallable APK built from %s. The app offers this update by itself; to install by hand, open this page on your phone and tap soulsmind.apk.\n' \
+            "$VERSION_CODE" "${GITHUB_SHA::7}" > notes.md
+          gh release create "build-${GITHUB_RUN_NUMBER}" build/soulsmind.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Souls Mind ${VERSION_NAME}" \
+            --notes-file notes.md \
             --latest

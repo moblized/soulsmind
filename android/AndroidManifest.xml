@@ -5,10 +5,12 @@
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
 
-    <!-- The game is fully offline; the WebView still expects this permission to start its network stack. -->
+    <!-- The game itself is offline; the network is used only to look for and download updates. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Short rumbles when you take a hit, fall, or fell a boss. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Lets the app install its own updates from GitHub releases; Android asks the player to confirm each one. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />

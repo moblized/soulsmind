@@ -65,6 +65,15 @@ button.up i { font-style: normal; font-size: 14px; color: var(--ember); font-var
 button.up:disabled { opacity: 0.45; cursor: default; border-color: rgba(143, 211, 224, 0.18); }
 @media (max-width: 560px) and (orientation: portrait) { .ups { grid-template-columns: 1fr; } button.up { min-height: 0; } }
 #relics { margin-top: 8px !important; font-size: 14px !important; }
+#update { align-items: center; justify-content: center; padding: 16px; background: rgba(5, 7, 13, 0.78); z-index: 7; }
+#update .card { width: min(480px, 100%); }
+#update .card h2 { font-size: clamp(30px, 7vh, 38px); color: var(--snow); }
+.up-bar { width: 100%; height: 8px; background: rgba(143, 211, 224, 0.14); border: 1px solid rgba(143, 211, 224, 0.3); }
+.up-bar[hidden] { display: none; }
+.up-bar i { display: block; height: 100%; width: 0; background: var(--ember); transition: width 0.2s; }
+#up-note { margin: 0; font-size: 14px; color: var(--frost); min-height: 1.2em; }
+.row.app-only { display: flex; }
+html:not(.app) .row.app-only, html:not(.app) #up-note { display: none; }
 .app .fs { display: none; }
 .card { width: min(440px, 100%); padding: 20px 22px; background: var(--stone); border: 1px solid rgba(143, 211, 224, 0.3); border-top: 3px solid var(--ember); box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .card h2 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 38px; line-height: 1; color: var(--ember); }
@@ -84,7 +93,7 @@ button.up:disabled { opacity: 0.45; cursor: default; border-color: rgba(143, 211
 @media (prefers-reduced-motion: reduce) { @keyframes rise { 0% { opacity: 0; } 14% { opacity: 1; } 72% { opacity: 1; } 100% { opacity: 0; } } }
 #safe { position: fixed; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 #title { padding-left: max(clamp(18px, 5vw, 56px), env(safe-area-inset-left)); }
-#pause, #end, #toast, #brazier { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+#pause, #end, #toast, #brazier, #update { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 html:not(.app) .app-only { display: none; }
 #fatal { position: fixed; z-index: 9; left: 16px; right: 16px; top: 16px; padding: 12px 14px; background: #2a1414; border: 1px solid #b4543c; color: #ffd9c9; font-size: 15px; }
 </style>
@@ -127,6 +136,10 @@ html:not(.app) .app-only { display: none; }
         <button id="btn-pvib" class="quiet app-only" type="button">Vibration: on</button>
         <button id="btn-pfull" class="quiet fs" type="button">Fullscreen</button>
       </div>
+      <div class="row app-only">
+        <button id="btn-pupdate" class="quiet" type="button">Check for updates</button>
+      </div>
+      <p id="up-note" class="app-only" aria-live="polite"></p>
     </div>
   </div>
 </div>
@@ -139,6 +152,19 @@ html:not(.app) .app-only { display: none; }
     <p id="bz-chimes"></p>
     <div class="ups" id="bz-ups"></div>
     <button id="btn-leave" class="primary" type="button">Leave</button>
+  </div>
+</div>
+
+<div class="overlay" id="update">
+  <div class="card">
+    <p class="stage">Update</p>
+    <h2 id="up-title">Update</h2>
+    <p id="up-text"></p>
+    <div class="up-bar" id="up-bar" hidden><i id="up-fill"></i></div>
+    <div class="menu">
+      <button id="btn-up-go" class="primary" type="button">Update now</button>
+      <button id="btn-up-later" type="button">Later</button>
+    </div>
   </div>
 </div>
 

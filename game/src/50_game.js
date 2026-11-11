@@ -47,6 +47,48 @@ const Settings = {
   load() { try { const s = JSON.parse(localStorage.getItem('rimebell.settings') || '{}'); this.muted = !!s.muted; this.vib = s.vib !== false; } catch (e) {} },
   save() { try { localStorage.setItem('rimebell.settings', JSON.stringify({ muted: this.muted, vib: this.vib })); } catch (e) {} },
 };
+// ---------- app updates: the Android shell finds new releases on GitHub and reports here ----------
+const bridge = () => (G.app && window.RimebellApp) || null;
+function appVersion() { try { const b = bridge(); return b && b.appVersion ? b.appVersion() : ''; } catch (e) { return ''; } }
+const Updater = {
+  info: null, mode: 'idle', dismissed: '',
+  // the card has one primary action that depends on the moment
+  set(mode, text, title) {
+    this.mode = mode;
+    $('up-title').textContent = title || (this.info ? 'Souls Mind ' + this.info.version + ' is ready' : 'Update');
+    $('up-text').textContent = text;
+    const go = $('btn-up-go'), bar = $('up-bar');
+    bar.hidden = mode !== 'downloading';
+    go.hidden = mode === 'downloading' || mode === 'installing';
+    go.textContent = mode === 'permission' ? 'Open settings' : mode === 'error' ? 'Try again' : 'Update now';
+    $('btn-up-later').textContent = mode === 'installing' ? 'Close' : 'Later';
+    $('btn-up-later').hidden = mode === 'downloading';
+  },
+  show() {
+    if (!this.info) return;
+    if (this.mode === 'idle') this.set('ready', 'A new version is out (you have ' + (this.info.current || appVersion()) + '). Updating takes a few seconds; the game closes to install it and your progress is kept.');
+    show('update', true);
+    try { $(this.mode === 'downloading' ? 'btn-up-later' : 'btn-up-go').focus({ preventScroll: true }); } catch (e) {}
+  },
+  showIfDue() { if (this.info && this.dismissed !== this.info.version) this.show(); },
+  hide() { show('update', false); if (this.info) this.dismissed = this.info.version; if (this.mode !== 'downloading' && this.mode !== 'installing') this.mode = 'idle'; },
+  primary() {
+    const b = bridge(); if (!b) return;
+    if (this.mode === 'permission') { b.openInstallSettings(); return; }
+    this.set('downloading', 'Downloading the update…'); $('up-fill').style.width = '0%'; b.installUpdate();
+  },
+};
+function appUpdate(info) {
+  Updater.info = info; Updater.mode = 'idle';
+  if (G.state === 'title' || G.state === 'pause') Updater.show();
+}
+function updateProgress(p) { if (Updater.mode !== 'downloading') Updater.set('downloading', ''); $('up-fill').style.width = clamp(p, 0, 100) + '%'; $('up-text').textContent = 'Downloading the update… ' + (p | 0) + '%'; }
+function updateStatus(s) {
+  if (s.kind === 'latest') { $('up-note').textContent = s.text; return; }
+  if (!$('update').classList.contains('on') && s.kind === 'error' && !Updater.info) { $('up-note').textContent = s.text; return; }
+  Updater.set(s.kind === 'cancelled' ? 'ready' : s.kind, s.text); show('update', true);
+}
+
 // a short rumble through the Android app; does nothing in a browser
 function buzz(ms) { if (!G.app || !Settings.vib) return; try { if (window.RimebellApp && window.RimebellApp.buzz) window.RimebellApp.buzz(ms | 0); } catch (e) {} }
 function later(t, fn, keep) { G.later.push({ t, fn, keep: !!keep }); }
@@ -317,6 +359,7 @@ function showTitle() {
   $('title-stage').textContent = 'Level ' + lv + ' · ' + LEVELS[lv].name; $('title-tag').textContent = LEVELS[lv].tag;
   show('title', true);
   try { (saved ? $('btn-continue') : $('btn-new')).focus({ preventScroll: true }); } catch (e) {}
+  Updater.showIfDue();
 }
 function beginPlay() {
   show('title', false); blurAll();
@@ -330,15 +373,21 @@ function pause() {
   if (G.state !== 'play') return; G.state = 'pause'; show('pause', true); drawMap();
   const S = G.save, own = Object.keys(RELICS).filter((k) => S.relics[k]).map((k) => RELICS[k].name + ': ' + RELICS[k].what);
   $('relics').textContent = (own.length ? own.join(' ') : 'No relics yet. Bosses carry them.') + ' Staff +' + S.up.staff + ', flask ' + maxFlask() + ', ' + S.chimes + ' chimes.';
+  if (G.app) { const v = appVersion(); $('up-note').textContent = v ? 'Version ' + v : ''; }
+  Updater.showIfDue();
   const locked = !!(G.boss && bossAwake(G.boss)); $('btn-rest').disabled = locked;
   $('btn-rest').textContent = locked ? 'No escape mid-fight' : 'Walk back to last brazier';
   try { $('btn-resume').focus({ preventScroll: true }); } catch (e) {}
 }
-function resume() { if (G.state !== 'pause') return; show('pause', false); G.state = 'play'; blurAll(); }
+function resume() { if (G.state !== 'pause') return; Updater.hide(); show('pause', false); G.state = 'play'; blurAll(); }
 // the app shell calls these: sleep/wake when it leaves or returns to the foreground, back for the system Back button
 function sleep() { pause(); if (G.state !== 'title' && G.state !== 'boot') persist(); try { if (Sfx.ctx && Sfx.ctx.state === 'running') Sfx.ctx.suspend(); } catch (e) {} }
-function wake() { Sfx.resume(); }
+function wake() {
+  Sfx.resume();
+  if (Updater.mode === 'permission') Updater.set('ready', 'If you allowed it, tap Update now to download and install.');
+}
 function back() {
+  if ($('update').classList.contains('on') && Updater.mode !== 'downloading') { Updater.hide(); return true; }
   if (G.state === 'play') { pause(); return true; }
   if (G.state === 'pause') { resume(); return true; }
   if (G.state === 'menu') { closeBrazier(); return true; }
@@ -463,6 +512,8 @@ function bindUI() {
   on('btn-pvib', toggleVib);
   on('btn-quit', () => { persist(); showTitle(); });
   on('btn-ok', dismissToast); on('btn-leave', closeBrazier);
+  on('btn-up-go', () => Updater.primary()); on('btn-up-later', () => Updater.hide());
+  on('btn-pupdate', () => { const b = bridge(); if (b) { $('up-note').textContent = 'Checking GitHub for updates…'; b.checkUpdate(); } });
   on('btn-keep', () => { show('end', false); G.state = 'play'; blurAll(); });
   on('btn-end-title', () => { persist(); showTitle(); });
   soundLabel();
@@ -501,6 +552,7 @@ function start(data) {
 }
 window.__rimebell = {
   G, Input, ROOMS, PH, T, STEP, View, ARENA, Sfx, tick, loadRoom, updatePlayer, hazardHit, newPlayer, freshSave, beginPlay, newGame, showTitle,
+  appUpdate, updateProgress, updateStatus, Updater,
   layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, buy, PIT, setRnd(f) { rnd = f; },
 };
 try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ save: G.save, playing: G.state !== 'title' && G.state !== 'boot' })); } catch (e) {}
