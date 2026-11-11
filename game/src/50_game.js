@@ -30,6 +30,10 @@ const ITEMS = {
   oath: { slot: 'relic', name: 'Oath of the Unsetting', what: 'Your Peal charges in six strikes instead of eight.' },
   purse: { slot: 'relic', name: 'Chime Purse', what: 'Foes drop a third more chimes.' },
   wraps: { slot: 'relic', name: 'Rimewalker Wraps', what: 'Spikes and icicles no longer hurt you.' },
+  rod: { slot: 'weapon', name: "Astronomer's Rod", what: 'Short, soft swings, but every strike to the side looses a small star that flies on ahead.', dmg: 0.7, reach: 0.85, cd: 0.4, bolt: 0.6 },
+  robe: { slot: 'armor', name: 'Starwoven Robe', what: 'Mends one ember every twenty seconds. The flask holds one drink fewer.', regen: 20, flask: -1 },
+  locket: { slot: 'relic', name: 'Moth-wing Locket', what: 'Dashing through a foe cuts it.' },
+  lens: { slot: 'relic', name: "Orren's Lens", what: 'While your health is full, your strikes hit a third harder.' },
 };
 const RELIC_SLOTS = 3;
 const SLOT_NAMES = { weapon: 'Weapon', armor: 'Armour', relic: 'Relics' };
@@ -43,11 +47,15 @@ const BOSSES = {
   sanctum: { flag: 'boss', spawn: null, A: () => ARENA, relic: 'clapper', item: 'censer', chimes: 150, line: 'The Abbot is silent at last' },
   barrow: { flag: 'warden', spawn: () => spawnWarden(), A: () => WARD, relic: 'wardlamp', chimes: 220, hides: 'J', line: 'The lantern goes dark' },
   court: { flag: 'knight', spawn: () => spawnVarhelm(), A: () => COURT, relic: 'oath', item: 'greatsword', chimes: 420, line: 'The sun over Duskmarch sets at last' },
+  silk: { flag: 'moth', spawn: () => spawnNightMoth(), A: () => MOTHA, relic: 'locket', chimes: 320, hides: 'M', line: 'The gallery goes dark' },
+  dome: { flag: 'astro', spawn: () => spawnOrren(), A: () => DOME, relic: 'lens', item: 'rod', chimes: 650, line: 'The kept stars go free' },
 };
 const ENDS = {
   1: { stage: 'Level 1 complete', title: 'The First Bell', text: 'Its voice rolls down the mountain and wakes the snow from the eaves. Behind you, the west door of the sanctum grinds open onto a road that leads down into a kingdom at dusk.' },
-  2: { stage: 'Level 2 complete', title: 'Sunset', text: 'Varhelm lowers his sword, and the sun over Duskmarch finally sets. In the first true dark in a hundred years, a light moves on the far mountains. More levels are coming.' },
+  2: { stage: 'Level 2 complete', title: 'Sunset', text: 'Varhelm lowers his sword, and the sun over Duskmarch finally sets. In the first true dark in a hundred years, the west door of the Court grinds open, and a stair climbs toward a light on the mountain.' },
+  3: { stage: 'Level 3 complete', title: 'Starfall', text: "Orren's lens goes cold in your hand. The stars he kept rise back through the broken dome, and for the first time in a hundred years the sky over the Starwell is still. More levels are coming." },
 };
+const SHARDS = ['gallery:H', 'barrow:H', 'bridge:H'];
 function relicPickup(id, x, y) { return { kind: 'K', relic: id, key: 'relic:' + id, x, y }; }
 function itemPickup(id, x, y) { return { kind: 'E', item: id, key: 'item:' + id, x, y }; }
 function wearIfRoom(id) { const r = G.save.equip.relics; if (r.length >= RELIC_SLOTS || r.indexOf(id) >= 0) return false; r.push(id); return true; }
@@ -58,8 +66,8 @@ const Store = {
 };
 function freshSave() {
   return {
-    v: 5, abilities: { claws: false, dash: false, jump2: false }, lit: { 'gate:3,12': 1 }, got: {}, visited: {},
-    boss: false, mini: false, done: false, warden: false, knight: false, done2: false, time: 0, deaths: 0,
+    v: 5, abilities: { claws: false, dash: false, jump2: false, glide: false }, lit: { 'gate:3,12': 1 }, got: {}, visited: {},
+    boss: false, mini: false, done: false, warden: false, knight: false, done2: false, moth: false, astro: false, done3: false, time: 0, deaths: 0,
     chimes: 0, echo: null, stats: { vit: 0, mig: 0, spi: 0, res: 0 },
     own: { staff: true, coat: true }, equip: { weapon: 'staff', armor: 'coat', relics: [] },
     brazier: { room: 'gate', x: 3 * T + T / 2 + 8, y: 13 * T - 22, key: 'gate:3,12' },
@@ -149,12 +157,12 @@ function loadRoom(id, spawn) {
   const room = { id, def, w: def.w, h: def.h, grid, kind: def.kind, level: def.level || 1, gateClosed: false, gateK: 0, braziers: [], signs: [], pickups: [], exitTiles: {}, bell: null, hidden: null };
   const cfg = BOSSES[id];
   for (const d of G.drops) S.chimes += d.v; // chimes still in the air come with you
-  G.room = room; G.enemies = []; G.shots = []; G.parts = []; G.drops = []; G.boss = null; G.later = G.later.filter((l) => l.keep); G.nearSign = null; G.nearProp = null; Sfx.mood = 'calm'; Sfx.lv = room.level;
+  G.room = room; G.enemies = []; G.shots = []; G.pshots = []; G.wind = null; G.skyT = 2.5; G.parts = []; G.drops = []; G.boss = null; G.later = G.later.filter((l) => l.keep); G.nearSign = null; G.nearProp = null; Sfx.mood = 'calm'; Sfx.lv = room.level;
   for (let y = 0; y < def.h; y++) for (let x = 0; x < def.w; x++) {
     const ch = grid[y][x]; let clear = true;
     if (ch === 'B') { const key = id + ':' + x + ',' + y; room.braziers.push({ x: x * T + T / 2, y: (y + 1) * T, key, lit: !!S.lit[key] }); }
     else if (ch === 'S') room.signs.push({ x: x * T + T / 2, y: (y + 1) * T, text: def.signs[x + ',' + y] || '' });
-    else if (ch === '1' || ch === '2' || ch === 'H' || ch === 'J') {
+    else if (ch === '1' || ch === '2' || ch === 'H' || ch === 'J' || ch === 'M') {
       const key = id + ':' + ch, pk = { kind: ch, key, x: x * T + T / 2, y: y * T + T / 2 };
       if (cfg && cfg.hides === ch && !S[cfg.flag]) room.hidden = pk; // a boss sits on it
       else if (!S.got[key]) room.pickups.push(pk);
@@ -248,6 +256,7 @@ function bossDefeated() {
   if (cfg.item && !S.own[cfg.item]) room.pickups.push(itemPickup(cfg.item, lx + 26, A.floor - 14));
   if (room.hidden && !S.got[room.hidden.key]) { room.pickups.push(room.hidden); room.hidden = null; }
   if (room.bell) room.bell.active = true;
+  for (const L in room.def.locks || {}) if (room.def.locks[L] === cfg.flag) later(1.2, () => openSeal(L));
   banner(cfg.line);
   persist();
 }
@@ -263,11 +272,13 @@ function collect(k) {
   Sfx.play('pickup'); ringFx(k.x, k.y, 70, '#eafcff', 0.6); burst(k.x, k.y, 24, 150, k.kind === 'H' || k.kind === 'K' ? '#ffb347' : '#bff4ff', 0.9, 2.5);
   if (k.kind === '1') { S.abilities.claws = true; toast('Ice Claws', 'Press toward a wall in mid-air to cling. Keep pressing toward it and hold {J} to climb. Let go of the stick and press {J} to leap away.'); }
   else if (k.kind === '2') { S.abilities.dash = true; toast('Gale Sash', '{D} surges forward, on the ground or in the air. One surge per leap.'); layout(); }
+  else if (k.kind === 'M') { S.abilities.glide = true; toast('Starsilk Mantle', 'Hold {J} while you fall to spread the mantle and drift. Leap, step, then glide: gaps no leap could cross.'); }
   else if (k.kind === 'J') { S.abilities.jump2 = true; toast('Cinder Step', 'Press {J} again in mid-air to leap off a burst of embers. Once per leap; the ground or a wall gives it back.'); }
   else if (k.kind === 'K') {
     S.own[k.relic] = true; const worn = wearIfRoom(k.relic);
     toast(ITEMS[k.relic].name, 'Boss relic. ' + ITEMS[k.relic].what + (worn ? ' You are wearing it.' : ' Your relic slots are full: wear it at a brazier.'));
     if (k.relic === 'oath' && !S.done2) { S.done2 = true; later(0.6, () => showEnd(2), true); }
+    if (k.relic === 'lens' && !S.done3) { S.done3 = true; later(0.6, () => showEnd(3), true); }
   }
   else if (k.kind === 'E') {
     const it = ITEMS[k.item]; S.own[k.item] = true;
@@ -377,6 +388,7 @@ function equipItem(id) {
     else if (E.relics.length >= RELIC_SLOTS) { Lv.msg = 'All three relic slots are full. Take one off first.'; Sfx.play('deny'); renderEquip(); return; }
     else E.relics.push(id);
   } else E[it.slot] = id;
+  if (it.slot === 'armor') G.player.flask = maxFlask(); // you have just rested: the flask fills to what this armour allows
   persist(); Sfx.play('buy'); renderEquip();
 }
 
@@ -397,7 +409,7 @@ function resolveCombat() {
       burst(blocked.x + blocked.w / 2 + blocked.dir * 9, blocked.y + 14, 8, 160, '#ffe6a0', 0.25, 1.5);
     }
     if (b && bossVulnerable(b) && b.hitId !== p.atkId && overlap(ab, b)) { b.hitId = p.atkId; hurtBoss(dmg); hit = true; }
-    for (let i = G.shots.length - 1; i >= 0; i--) { const s = G.shots[i]; if ((s.k === 'orb' || s.k === 'arrow') && overlap(ab, shotBox(s))) { burst(s.x, s.y, 8, 110, '#e9fbff', 0.3, 2); G.shots.splice(i, 1); hit = true; Sfx.play('hit'); } }
+    for (let i = G.shots.length - 1; i >= 0; i--) { const s = G.shots[i]; if ((s.k === 'orb' || s.k === 'arrow' || s.k === 'mote' || s.k === 'orbiter') && overlap(ab, shotBox(s))) { burst(s.x, s.y, 8, 110, '#e9fbff', 0.3, 2); G.shots.splice(i, 1); hit = true; Sfx.play('hit'); } }
     const bell = G.room.bell;
     if (bell && bell.active && bell.drop >= 1 && bell.hitId !== p.atkId && overlap(ab, { x: bell.x - 22, y: bell.y - 64, w: 44, h: 64 })) { bell.hitId = p.atkId; ringBell(); hit = true; }
     if (hit && p.atkDone !== p.atkId) {
@@ -408,14 +420,22 @@ function resolveCombat() {
     }
   }
   const body = { x: p.x + 1, y: p.y + 2, w: p.w - 2, h: p.h - 3 };
+  // the Moth-wing Locket: a dash cuts whatever it passes through
+  if (eq('locket') && p.dashT > 0) {
+    const cut = { x: p.x - 4, y: p.y, w: p.w + 8, h: p.h }, dmg = strikeDmg(false) * 0.8;
+    for (const e of G.enemies) if (!e.dead && e.dashHit !== p.dashId && overlap(cut, e)) { e.dashHit = p.dashId; hurtEnemy(e, dmg, p.dashDir * 0.4, 0); ringFx(e.x + e.w / 2, e.y + e.h / 2, 18, '#e8ddff', 0.25); }
+    if (b && bossVulnerable(b) && b.dashHit !== p.dashId && overlap(cut, b)) { b.dashHit = p.dashId; hurtBoss(dmg); }
+  }
   for (const e of G.enemies) if (!e.dead && e.stun <= 0 && overlap(body, { x: e.x + 2, y: e.y + 2, w: e.w - 4, h: e.h - 3 })) { hurtPlayer(e.x + e.w / 2, false, 1); break; }
   for (const e of G.enemies) if (!e.dead && e.hit && overlap(body, e.hit)) { hurtPlayer(e.x + e.w / 2, false, e.hit.dmg); break; }
   if (b && b.hit && overlap(body, b.hit)) hurtPlayer(b.x + b.w / 2, false, b.hit.dmg);
   const touch = b ? bossTouch(b) : 0;
   if (touch && overlap(body, { x: b.x + 6, y: b.y + 5, w: b.w - 12, h: b.h - 7 })) hurtPlayer(b.x + b.w / 2, false, touch);
   for (const s of G.shots) {
-    if ((s.k === 'ice' || s.k === 'blade') && s.warn > 0) continue;
-    if (overlap(body, shotBox(s))) { const pt = s.k === 'orb' || s.k === 'arrow' || s.k === 'fire'; if (hurtPlayer(pt ? s.x : s.x + s.w / 2, false, s.dmg || 1) && (s.k === 'orb' || s.k === 'arrow')) s.life = 0; break; }
+    if ((s.k === 'ice' || s.k === 'blade' || s.k === 'fstar') && s.warn > 0) continue;
+    if (s.k === 'node') continue;
+    if (s.k === 'line') { if (s.warn <= 0 && segDist(p.x + p.w / 2, p.y + p.h / 2, s) < 9 && hurtPlayer(p.x + p.w / 2 - p.face, false, s.dmg)) break; continue; }
+    if (overlap(body, shotBox(s))) { const pt = s.k === 'orb' || s.k === 'arrow' || s.k === 'fire' || s.k === 'mote' || s.k === 'orbiter'; if (hurtPlayer(pt ? s.x : s.x + s.w / 2, false, s.dmg || 1) && (s.k === 'orb' || s.k === 'arrow' || s.k === 'mote')) s.life = 0; break; }
   }
 }
 
@@ -453,7 +473,7 @@ function tick(dt) {
   if (G.state !== 'play') { if (G.state !== 'pause' && G.state !== 'msg' && G.state !== 'menu') updateParticles(dt); return; }
   if (G.hitstop > 0) { G.hitstop -= dt; return; }
   G.save.time += dt;
-  updatePlayer(dt); updateEnemies(dt); updateBoss(dt); updateShots(dt); updateDrops(dt); resolveCombat(); updateWorld(dt); updateParticles(dt); updateCamera(dt, false);
+  updatePlayer(dt); updateEnemies(dt); updateBoss(dt); updateShots(dt); updateBolts(dt); updateSky(dt); updateDrops(dt); resolveCombat(); updateWorld(dt); updateParticles(dt); updateCamera(dt, false);
 }
 
 // ---------- UI ----------
@@ -467,10 +487,10 @@ function blurAll() { try { if (document.activeElement && document.activeElement.
 function fmtTime(s) { const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + (r < 10 ? '0' : '') + r; }
 function showEnd(level) {
   if (G.state !== 'play') { later(0.5, () => showEnd(level), true); return; }
-  const S = G.save, E = ENDS[level], shards = ['gallery:H', 'barrow:H'].filter((k) => S.got[k]).length;
+  const S = G.save, E = ENDS[level], shards = SHARDS.filter((k) => S.got[k]).length;
   G.state = 'msg'; G.msgT = -99;
   $('end-stage').textContent = E.stage; $('end-title').textContent = E.title; $('end-text').textContent = E.text;
-  $('end-stats').textContent = 'Time ' + fmtTime(S.time) + '  ·  Falls ' + S.deaths + '  ·  Ember Shards ' + shards + ' of 2';
+  $('end-stats').textContent = 'Time ' + fmtTime(S.time) + '  ·  Falls ' + S.deaths + '  ·  Ember Shards ' + shards + ' of ' + SHARDS.length;
   show('end', true); setCaption(null);
 }
 function showTitle() {
@@ -681,7 +701,7 @@ function start(data) {
 window.__rimebell = {
   G, Input, ROOMS, PH, T, STEP, View, ARENA, Sfx, tick, loadRoom, updatePlayer, hazardHit, newPlayer, freshSave, beginPlay, newGame, showTitle,
   appUpdate, updateProgress, updateStatus, Updater,
-  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, equipItem, brazierTab, ITEMS, weapon, armor, eq, levelCost, charLevel, maxHpOf, PIT, setRnd(f) { rnd = f; },
+  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, equipItem, brazierTab, ITEMS, weapon, armor, eq, levelCost, charLevel, maxHpOf, PIT, MOTHA, DOME, spawnNightMoth, spawnOrren, maxFlask, strikeDmg, BOSSES, showEnd, setRnd(f) { rnd = f; },
 };
 try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ save: G.save, playing: G.state !== 'title' && G.state !== 'boot' })); } catch (e) {}
 (function boot() {

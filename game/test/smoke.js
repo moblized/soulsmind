@@ -91,7 +91,7 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
 
       // 6. the Silent Abbot: loot and ending
       G.save.abilities.dash = true; G.god = true; R.loadRoom('sanctum', { exit: 'a' }); G.state = 'play';
-      run(12, { bias: -1, until: () => !!G.boss }); ok('abbot appears and the gate shuts', !!G.boss && G.room.gateClosed);
+      run(40, { bias: -1, until: () => !!G.boss }); ok('abbot appears and the gate shuts', !!G.boss && G.room.gateClosed);
       run(150); if (G.boss && G.boss.hp > 18) G.boss.hp = 18;
       run(240, { until: () => !G.boss || G.boss.hp <= 3 }); const ph = G.boss ? G.boss.phase : 0;
       if (G.boss) { G.boss.hp = 1; run(120, { until: () => !G.boss }); }

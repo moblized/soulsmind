@@ -153,6 +153,11 @@ const Sfx = {
         case 'heavy': this.noise(0.24, 0.2, 420, 0.7, 120); break;
         case 'growl': this.tone(92, 0.4, 'sawtooth', 0.07, 66); break;
         case 'gleam': this.tone(2400, 0.22, 'sine', 0.03, 3200); break;
+        case 'flutter': this.noise(0.22, 0.09, 700, 3, 1300); break;
+        case 'blink': this.tone(1800, 0.25, 'sine', 0.04, 600); this.tone(900, 0.2, 'sine', 0.03, 2400); break;
+        case 'zap': this.noise(0.18, 0.12, 2600, 2, 4200); this.tone(1320, 0.14, 'square', 0.025, 660); break;
+        case 'bolt': this.tone(1046.5, 0.16, 'sine', 0.05, 1568); this.noise(0.08, 0.07, 3000, 2); break;
+        case 'glide': this.noise(0.25, 0.06, 900, 2, 500); break;
         case 'die': this.tone(300, 0.9, 'triangle', 0.13, 50); this.noise(0.6, 0.18, 400, 0.6, 100); break;
       }
     } catch (e) {}
@@ -167,7 +172,7 @@ const Sfx = {
         if (this.pulse % 8 === 6) this.bell(155.6, 0.045, 1.2);
       } else {
         this.musicT = 2.2 + Math.random() * 4;
-        const sc = this.lv === 2 ? [146.8, 174.6, 196, 220, 233.1, 293.7, 349.2] : [196, 220, 261.6, 293.7, 329.6, 392, 440];
+        const sc = this.lv === 3 ? [261.6, 293.7, 329.6, 392, 440, 523.25, 587.3, 659.25] : this.lv === 2 ? [146.8, 174.6, 196, 220, 233.1, 293.7, 349.2] : [196, 220, 261.6, 293.7, 329.6, 392, 440];
         const f = sc[(Math.random() * sc.length) | 0] * (Math.random() < 0.3 ? 2 : 1);
         this.bell(f, 0.03, 3); if (Math.random() < 0.35) this.bell(f * 1.5, 0.018, 3, 0.4);
       }

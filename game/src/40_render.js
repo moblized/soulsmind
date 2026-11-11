@@ -8,7 +8,7 @@ const PAL = {
   dusk: { edge: ['#4a3a3a', '#52403d', '#443535'], inner: ['#261c20', '#2a1f23', '#22191c'], side: '#6b5450', under: '#1a1316', snow: '#c9a45a', shade: 'rgba(120,70,40,0.5)', drip: '#3a2c22', dusk: true },
   crypt: { edge: ['#3a3230', '#3f3633', '#352d2b'], inner: ['#1a1514', '#1d1716', '#171211', '#1a1514'], side: '#5a4c46', under: '#110d0c', snow: '#6f6458', shade: 'rgba(0,0,0,0.35)', drip: '#2c2522', dusk: true },
 };
-const isOpen = (room) => room.kind === 'outdoor' || room.kind === 'dusk';
+const isOpen = (room) => room.kind === 'outdoor' || room.kind === 'dusk' || room.kind === 'star';
 const snow = []; for (let i = 0; i < 90; i++) snow.push({ x: Math.random(), y: Math.random(), z: 0.4 + Math.random() * 0.6, ph: Math.random() * TAU });
 
 function layout() {
@@ -50,6 +50,8 @@ function drawBackground(c) {
   const a = View.area, s = View.scale, t = G.time;
   if (G.room.kind === 'dusk') { drawDuskSky(c, a, s, t); return; }
   if (G.room.kind === 'crypt') { drawCryptWall(c, a, s, t); return; }
+  if (G.room.kind === 'star') { drawStarSky(c, a, s, t); return; }
+  if (G.room.kind === 'vault') { drawVault(c, a, s, t); return; }
   if (G.room.kind === 'outdoor') {
     const g = c.createLinearGradient(0, a.y, 0, a.y + a.h); g.addColorStop(0, '#060a1c'); g.addColorStop(0.55, '#12264a'); g.addColorStop(1, '#2c5570');
     c.fillStyle = g; c.fillRect(a.x, a.y, a.w, a.h);
@@ -111,7 +113,7 @@ function drawTiles(c) {
       if (!r) { c.fillStyle = pal.side; c.fillRect(x + T - 2, y, 2, T); }
       if (!d) {
         c.fillStyle = pal.under; c.fillRect(x, y + T - 3, T, 3);
-        if (h > 0.45 && !pal.dusk) { const ix = x + 4 + h * 12, il = 4 + h * 9; c.fillStyle = '#9fd4e2'; c.beginPath(); c.moveTo(ix - 2.5, y + T); c.lineTo(ix + 2.5, y + T); c.lineTo(ix, y + T + il); c.closePath(); c.fill(); }
+        if (h > 0.45 && !pal.dusk && !pal.star) { const ix = x + 4 + h * 12, il = 4 + h * 9; c.fillStyle = '#9fd4e2'; c.beginPath(); c.moveTo(ix - 2.5, y + T); c.lineTo(ix + 2.5, y + T); c.lineTo(ix, y + T + il); c.closePath(); c.fill(); }
         else if (h > 0.5 && pal.dusk) { c.strokeStyle = pal.drip; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x + 6 + h * 10, y + T); c.quadraticCurveTo(x + 9 + h * 10, y + T + 6, x + 5 + h * 12, y + T + 6 + h * 8); c.stroke(); }
       }
       if (!u) {
@@ -122,6 +124,14 @@ function drawTiles(c) {
     } else if (ch === 'X') { // a sealed door: stone slab with a bell rune that has not woken yet
       c.fillStyle = '#1d2236'; c.fillRect(x, y, T + 0.5, T + 0.5); c.fillStyle = '#2a3150'; c.fillRect(x + 2, y + 2, T - 4, T - 4);
       if (tileAt(room, tx, ty + 1) === 'X') { c.strokeStyle = 'rgba(255,207,122,' + (0.35 + 0.2 * Math.sin(G.time * 2)) + ')'; c.lineWidth = 1.5; c.beginPath(); c.arc(x + T / 2, y + T, 7, 0, TAU); c.stroke(); }
+    } else if (ch === '=' && pal.star) { // brass rails
+      c.fillStyle = '#4a3f5e'; c.fillRect(x, y, T + 0.5, 5); c.fillStyle = '#c99f3f'; c.fillRect(x, y - 0.5, T + 0.5, 1.8);
+      c.fillStyle = '#2a2440'; c.fillRect(x, y + 4.5, T + 0.5, 1.5); if (h > 0.6) { c.fillStyle = '#c99f3f'; c.fillRect(x + 10, y + 5, 2, 4); }
+    } else if ((ch === '^' || ch === 'v') && pal.star) { // broken lenses
+      for (let i = 0; i < 3; i++) {
+        const bx = x + 2 + i * 7.5, len = 9 + hash2(tx * 3 + i, ty) * 9, base = ch === '^' ? y + T : y, tip = ch === '^' ? y + T - len : y + len;
+        c.fillStyle = i === 1 ? 'rgba(232,225,255,0.9)' : 'rgba(170,160,235,0.8)'; c.beginPath(); c.moveTo(bx, base); c.lineTo(bx + 6, base); c.lineTo(bx + 2 + hash2(i, tx) * 3, tip); c.closePath(); c.fill();
+      }
     } else if (ch === '=' && pal.dusk) {
       c.fillStyle = '#4a3a2c'; c.fillRect(x, y, T + 0.5, 6); c.fillStyle = '#2b2018'; c.fillRect(x, y + 5, T + 0.5, 1.5);
       c.fillStyle = '#a8894e'; c.fillRect(x, y - 0.5, T + 0.5, 1.6);
@@ -144,9 +154,9 @@ function drawTiles(c) {
     } else if (ch === 'G') {
       const k = room.gateK || 0; if (k <= 0.01) continue;
       const top = tileAt(room, tx, ty - 1) !== 'G'; if (!top) continue;
-      const hh = 2 * T * k; c.fillStyle = pal.dusk ? 'rgba(40,30,25,0.4)' : 'rgba(160,220,240,0.18)'; c.fillRect(x + 2, y, T - 4, hh);
-      c.fillStyle = pal.dusk ? '#5a4c40' : '#a6dcea'; for (let i = 0; i < 3; i++) c.fillRect(x + 4 + i * 7, y, 3, hh);
-      c.fillStyle = pal.dusk ? '#8a7356' : '#6fb3c8'; c.fillRect(x + 2, y + hh - 4, T - 4, 3);
+      const hh = 2 * T * k; c.fillStyle = pal.dusk ? 'rgba(40,30,25,0.4)' : pal.star ? 'rgba(150,130,230,0.2)' : 'rgba(160,220,240,0.18)'; c.fillRect(x + 2, y, T - 4, hh);
+      c.fillStyle = pal.dusk ? '#5a4c40' : pal.star ? '#b9a8ff' : '#a6dcea'; for (let i = 0; i < 3; i++) c.fillRect(x + 4 + i * 7, y, 3, hh);
+      c.fillStyle = pal.dusk ? '#8a7356' : pal.star ? '#c99f3f' : '#6fb3c8'; c.fillRect(x + 2, y + hh - 4, T - 4, 3);
     } else if (room.def.exits[ch]) {
       const g = c.createLinearGradient(tx === 0 ? x + T : x, 0, tx === 0 ? x : x + T, 0);
       g.addColorStop(0, 'rgba(150,200,235,0)'); g.addColorStop(1, 'rgba(150,200,235,0.16)'); c.fillStyle = g; c.fillRect(x, y, T, T);
@@ -187,7 +197,7 @@ function drawProps(c) {
   }
   for (const k of room.pickups) {
     const y = k.y + Math.sin(t * 2.4 + k.x) * 3;
-    glow(c, k.x, y, 46, k.kind === 'H' || k.kind === 'E' ? 'rgba(255,160,60,0.32)' : 'rgba(140,220,240,0.32)');
+    glow(c, k.x, y, 46, k.kind === 'H' || k.kind === 'E' ? 'rgba(255,160,60,0.32)' : k.kind === 'M' ? 'rgba(200,185,255,0.4)' : 'rgba(140,220,240,0.32)');
     c.save(); c.translate(k.x, y);
     if (k.kind === '1') { // three iron claws
       c.strokeStyle = '#1b2233'; c.lineWidth = 3; c.lineCap = 'round';
@@ -200,8 +210,9 @@ function drawProps(c) {
     } else if (k.kind === 'E') { // equipment lying in the world: weapons and armour on a cloth, relics as small charms
       const it = ITEMS[k.item];
       if (it.slot === 'weapon') { c.rotate(-0.6 + Math.sin(t * 1.4) * 0.1); drawCarried(c, k.item, false, 1.2); }
-      else if (it.slot === 'armor') { c.fillStyle = k.item === 'mail' ? '#8a7a5c' : k.item === 'shroud' ? '#5c5562' : '#c4621a'; c.beginPath(); c.moveTo(-6, -8); c.lineTo(6, -8); c.lineTo(9, 8); c.lineTo(-9, 8); c.closePath(); c.fill(); c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(-6, -8, 12, 2); }
+      else if (it.slot === 'armor') { c.fillStyle = k.item === 'mail' ? '#8a7a5c' : k.item === 'shroud' ? '#5c5562' : k.item === 'robe' ? '#3b3a8a' : '#c4621a'; c.beginPath(); c.moveTo(-6, -8); c.lineTo(6, -8); c.lineTo(9, 8); c.lineTo(-9, 8); c.closePath(); c.fill(); c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(-6, -8, 12, 2); }
       else { c.fillStyle = k.item === 'purse' ? '#c99f3f' : '#9fd4e2'; c.beginPath(); c.arc(0, 0, 5, 0, TAU); c.fill(); c.strokeStyle = '#e2b64f'; c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, 8, 0, TAU); c.stroke(); }
+    } else if (k.kind === 'M') { drawMantlePickup(c, t);
     } else if (k.kind === 'K') { // a boss relic: a pale shard ringed in gold
       c.rotate(Math.sin(t * 1.5) * 0.2); c.strokeStyle = '#e2b64f'; c.lineWidth = 1.6; c.beginPath(); c.arc(0, 0, 10, 0, TAU); c.stroke();
       c.fillStyle = '#eafcff'; c.beginPath(); c.moveTo(0, -8); c.lineTo(4, 0); c.lineTo(0, 8); c.lineTo(-4, 0); c.closePath(); c.fill();
@@ -245,6 +256,10 @@ function drawCarried(c, id, glowBell, scale) {
   } else if (id === 'spear') {
     c.strokeStyle = '#4a3826'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(-2, -1); c.lineTo(-11, -32); c.stroke();
     c.fillStyle = '#d8d0c0'; c.beginPath(); c.moveTo(-13, -31); c.lineTo(-9.5, -32.5); c.lineTo(-12.5, -38); c.closePath(); c.fill();
+  } else if (id === 'rod') {
+    c.strokeStyle = '#c99f3f'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-3, -3); c.lineTo(-9, -27); c.stroke();
+    c.strokeStyle = '#c99f3f'; c.lineWidth = 0.9; c.beginPath(); c.ellipse(-9.5, -29, 4, 1.6, -0.3, 0, TAU); c.stroke();
+    c.fillStyle = glowBell ? '#fff6dc' : '#fff1c9'; c.beginPath(); c.arc(-9.5, -29, 1.8, 0, TAU); c.fill();
   } else if (id === 'greatsword') {
     c.strokeStyle = '#efe2bf'; c.lineWidth = 3.2; c.beginPath(); c.moveTo(-3, -6); c.lineTo(-10, -34); c.stroke();
     c.strokeStyle = '#c9a45a'; c.lineWidth = 1.8; c.beginPath(); c.moveTo(-6.5, -9); c.lineTo(-1, -10.5); c.stroke();
@@ -287,6 +302,7 @@ function drawPlayer(c) {
   c.fillStyle = '#ffe6c4'; c.beginPath(); c.ellipse(1.4, -17, 3.7, 3.5, 0, 0, TAU); c.fill();
   c.fillStyle = '#2a1c16'; c.fillRect(1.3, -18.2, 1.2, 2); c.fillRect(3.7, -18.2, 1.2, 2);
   c.restore(); c.globalAlpha = 1;
+  if (p.gliding) drawGlide(c, p);
   if (p.atkT > 0) {
     const W = weapon(), k = p.atkT / (W.heavy ? 0.16 : 0.13), r = (p.atkPeal ? 40 : 27) * W.reach * (eq('spine') ? 1.3 : 1), cy = p.y + p.h / 2, warm = p.atkPeal || W.heavy;
     if (p.atkDir === 'up') drawSlash(c, cx, p.y - 2, -Math.PI / 2, r, k, warm);
@@ -301,6 +317,7 @@ function drawEnemies(c) {
   const t = G.time;
   for (const e of G.enemies) {
     if (FOES[e.type].dusk) { drawDuskFoe(c, e, t); continue; }
+    if (FOES[e.type].star) { drawStarFoe(c, e, t); continue; }
     const cx = e.x + e.w / 2, white = e.flash > 0;
     if (e.type === 'r') {
       c.save(); c.translate(cx, e.y + e.h); c.scale(e.dir, 1);
@@ -363,6 +380,8 @@ function drawBoss(c) {
   if (b.kind === 'matriarch') { drawMatriarch(c, b); return; }
   if (b.kind === 'warden') { drawWarden(c, b); return; }
   if (b.kind === 'varhelm') { drawVarhelm(c, b); return; }
+  if (b.kind === 'moth') { drawNightMoth(c, b); return; }
+  if (b.kind === 'orren') { drawOrren(c, b); return; }
   const t = G.time, A = ARENA, white = b.flash > 0;
   const jitter = b.state === 'slamHold' || b.state === 'dying' || b.state === 'enrage' ? (Math.random() - 0.5) * 3 : 0;
   const cx = b.x + b.w / 2 + jitter;
@@ -400,7 +419,8 @@ function drawShots(c) {
     else if (s.k === 'wave') {
       const dk = G.room.level === 2;
       for (let i = 0; i < 3; i++) { const bx = s.x + i * 5, h = s.h * (0.6 + 0.4 * Math.abs(Math.sin(t * 20 + i * 2))); c.fillStyle = dk ? (i === 1 ? '#ffe6a0' : '#c98a4a') : i === 1 ? '#eafcff' : '#9fd8e6'; c.beginPath(); c.moveTo(bx - 1, s.y + s.h); c.lineTo(bx + 7, s.y + s.h); c.lineTo(bx + 3 + s.dir * 3, s.y + s.h - h); c.closePath(); c.fill(); }
-    } else if (s.k !== 'ice') drawDuskShot(c, s, t);
+    } else if (STAR_SHOTS[s.k]) drawStarShot(c, s, t);
+    else if (s.k !== 'ice') drawDuskShot(c, s, t);
     else {
       if (s.warn > 0) { c.fillStyle = 'rgba(190,240,255,' + (0.1 + 0.12 * Math.abs(Math.sin(t * 16))) + ')'; c.fillRect(s.x + 3, s.y, 2, s.floor - s.y); }
       const wob = s.warn > 0 ? Math.sin(t * 40) * 1 : 0;
@@ -419,9 +439,9 @@ function drawParticles(c) {
 }
 
 function drawSnow(c, dt) {
-  const a = View.area, out = isOpen(G.room), dusk = G.room.kind === 'dusk' || G.room.kind === 'crypt';
-  const n = out ? (dusk ? 60 : snow.length) : 34, wind = out ? (dusk ? 30 : 60) : 10;
-  c.fillStyle = dusk ? (out ? '#ffcf7a' : '#bfae94') : '#eaf4f9';
+  const a = View.area, out = isOpen(G.room), lv3 = G.room.kind === 'star' || G.room.kind === 'vault', dusk = G.room.kind === 'dusk' || G.room.kind === 'crypt' || lv3;
+  const n = out ? (dusk ? 60 : snow.length) : 34, wind = out ? (dusk ? (lv3 ? 14 : 30) : 60) : 10;
+  c.fillStyle = lv3 ? (out ? '#e6e2ff' : '#a99fe0') : dusk ? (out ? '#ffcf7a' : '#bfae94') : '#eaf4f9';
   for (let i = 0; i < n; i++) {
     const s = snow[i]; s.ph += dt * 1.3;
     s.x += ((-wind * s.z + Math.sin(s.ph) * 8) * dt) / a.w; s.y += ((dusk ? (out ? 10 : 6) : out ? 46 : 16) * s.z * dt) / a.h;
@@ -456,9 +476,9 @@ function drawHUD(c) {
   if (b && bossAwake(b) && b.state !== 'intro') {
     const w = Math.min(a.w * 0.5, 340), x = a.x + (a.w - w) / 2, y = a.y + a.h - 24;
     c.font = '500 17px "Grenze Gotisch", "Palatino Linotype", serif'; c.textAlign = 'center'; c.fillStyle = '#dcebf2'; c.fillText(b.name, a.x + a.w / 2, y - 8);
-    const dk = G.room.level === 2;
-    c.fillStyle = 'rgba(8,12,22,0.7)'; c.fillRect(x - 2, y - 2, w + 4, 9); c.fillStyle = dk ? '#4a2a2a' : '#3a4480'; c.fillRect(x, y, w, 5);
-    c.fillStyle = dk ? (b.phase === 2 ? '#ffe6a0' : '#d9a54a') : b.phase === 2 ? '#bff4ff' : '#8fd3e0'; c.fillRect(x, y, w * clamp(b.hp / b.maxHp, 0, 1), 5);
+    const dk = G.room.level === 2, st = G.room.level === 3;
+    c.fillStyle = 'rgba(8,12,22,0.7)'; c.fillRect(x - 2, y - 2, w + 4, 9); c.fillStyle = dk ? '#4a2a2a' : st ? '#2c2652' : '#3a4480'; c.fillRect(x, y, w, 5);
+    c.fillStyle = dk ? (b.phase === 2 ? '#ffe6a0' : '#d9a54a') : st ? (b.phase === 2 ? '#fff1c9' : '#b9a8ff') : b.phase === 2 ? '#bff4ff' : '#8fd3e0'; c.fillRect(x, y, w * clamp(b.hp / b.maxHp, 0, 1), 5);
     c.fillStyle = 'rgba(8,12,22,0.8)'; c.fillRect(x + w / 2 - 1, y - 2, 2, 9);
   }
 }
@@ -489,7 +509,7 @@ function render(dt) {
   drawBackground(c);
   const sh = G.reduceMotion ? 0 : G.shake, shx = (Math.random() - 0.5) * sh, shy = (Math.random() - 0.5) * sh, s = V.scale;
   c.setTransform(s * d, 0, 0, s * d, (a.x - (G.cam.x + shx) * s) * d, (a.y - (G.cam.y + shy) * s) * d);
-  drawTiles(c); drawProps(c); drawEnemies(c); drawBoss(c); drawPlayer(c); drawShots(c); drawParticles(c);
+  drawTiles(c); drawProps(c); drawEnemies(c); drawBoss(c); drawPlayer(c); drawShots(c); drawBolts(c); drawParticles(c);
   c.setTransform(d, 0, 0, d, 0, 0);
   drawSnow(c, dt);
   const vg = c.createRadialGradient(a.x + a.w / 2, a.y + a.h / 2, Math.min(a.w, a.h) * 0.45, a.x + a.w / 2, a.y + a.h / 2, Math.max(a.w, a.h) * 0.8);

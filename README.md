@@ -4,6 +4,7 @@ A hard 2D action-exploration platformer for Android. You play a small lamplighte
 
 - **Level 1: Rimebell.** A frozen mountain monastery whose bells went silent a hundred winters ago. Six rooms, two bosses (the Rime Matriarch and the Silent Abbot), Ice Claws and the Gale Sash.
 - **Level 2: Duskmarch.** A fallen kingdom where the sun began to set a hundred years ago and never finished. Four rooms, with Barrow Hounds that lunge, Oathbound Knights whose shields block strikes from the front, and Ash Archers on the walls. Two bosses: the Barrow Warden and Varhelm, the Unsetting Knight, who likes to delay his swings. The new ability is the Cinder Step (a double jump).
+- **Level 3: Starwell.** A mountaintop observatory where the sky has not stopped falling since the sun set over Duskmarch. Five rooms behind the Court's west door. Stars fall in the open rooms (a lit brazier keeps them off). Enemies: Starling Moths that dive, Orrery Sentinels that fire rings of shots, and Blink Acolytes that step behind you. Two bosses: the Night Moth, and Orren, the Last Astronomer, who drops stars and draws burning constellations around you. The new ability is the Starsilk Mantle: hold JUMP while falling to glide.
 
 ## Install on Android
 
@@ -18,9 +19,9 @@ Every push to `main` builds a fresh APK. On your phone, open the latest release 
 - **Bosses drop loot.** Each boss drops a heap of chimes and a relic with a lasting effect.
 - **Level up at braziers.** Rest, then spend chimes on levels. Each level raises one stat and costs more than the last: **Vitality** (health), **Might** (strike damage), **Spirit** (flask drinks) or **Resonance** (a stronger Peal that charges faster). Points can be shuffled before you confirm.
 - **Change weapon and gear at braziers.** The Equipment tab holds one weapon, one armour and three relics.
-  - Weapons: Bell-staff (start), Rime Sickle (fast), Abbot's Censer (heavy, breaks shields), Oathbound Spear (long reach), Dusk Greatsword (heaviest).
-  - Armour: Pilgrim's Coat (start), Oathbound Mail (heavy blows take one ember; slower), Ashen Shroud (faster, longer dodge).
-  - Relics: the four boss relics, plus the Chime Purse and Rimewalker Wraps hidden in Rimebell.
+  - Weapons: Bell-staff (start), Rime Sickle (fast), Abbot's Censer (heavy, breaks shields), Oathbound Spear (long reach), Dusk Greatsword (heaviest), Astronomer's Rod (side strikes fire a small star).
+  - Armour: Pilgrim's Coat (start), Oathbound Mail (heavy blows take one ember; slower), Ashen Shroud (faster, longer dodge), Starwoven Robe (slowly mends you; one less flask drink).
+  - Relics: the six boss relics (including the Moth-wing Locket, so your dash cuts foes, and Orren's Lens, which adds a third to your damage at full health), plus the Chime Purse and Rimewalker Wraps hidden in Rimebell.
 - **Climbing.** With the Ice Claws, press into a wall and hold JUMP to climb it. Let go of the stick and press JUMP to leap away.
 - **Updates itself.** The Android app checks this repository's releases on launch and offers new versions; the pause menu shows the version and can check by hand.
 - **Heavy hits take two embers.** A dash briefly passes through attacks.
@@ -32,7 +33,7 @@ Every push to `main` builds a fresh APK. On your phone, open the latest release 
 | --- | --- |
 | `game/src/` | The game: plain JavaScript drawn on a canvas, with all sound synthesized |
 | `game/build.js` | Builds `dist/index.html` (browser) and `dist/app/index.html` (Android, offline) |
-| `game/test/` | Headless-Chrome tests: room reachability, Level 1 and Level 2 systems, random play, and app checks |
+| `game/test/` | Headless-Chrome tests: room reachability, the systems of all three levels, random play, and app checks |
 | `android/` | A small native shell (one Activity hosting a WebView), the icon, and the signing key |
 | `android/build.sh` | Builds and signs `build/soulsmind.apk` without Gradle |
 

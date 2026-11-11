@@ -26,6 +26,21 @@ const CASES = [
   ['rampart (with Cinder Step)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a', 'b'] }, {}],
   ['rampart (from the Court)', { claws: true, dash: true, jump2: true }, { exit: 'b' }, { exits: ['a', 'b'] }, {}],
   ['court', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'] }, {}],
+  ['court (west door open)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a', 'b'] }, {}],
+  ['court (west door sealed)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'] }, { exits: ['b'] }, { knight: false }],
+  // Level 3: arrives with claws, dash and the Cinder Step; the Starsilk Mantle (glide) waits behind the Night Moth
+  ['stair', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a', 'b'] }, {}],
+  ['stair (from the top)', { claws: true, dash: true, jump2: true }, { exit: 'b' }, { exits: ['a', 'b'] }, {}],
+  ['silk', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a', 'b'], pickups: ['M'] }, {}],
+  ['silk (door still sealed)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'] }, { exits: ['b'] }, { moth: false }],
+  ['orrery', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'], pickups: ['robe'] }, { exits: ['b'] }],
+  ['orrery (with Starsilk)', { claws: true, dash: true, jump2: true, glide: true }, { exit: 'a' }, { exits: ['a', 'b'], pickups: ['robe'] }, {}],
+  ['orrery (return)', { claws: true, dash: true, jump2: true, glide: true }, { exit: 'b' }, { exits: ['a', 'b'] }, {}],
+  ['bridge', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'] }, { exits: ['b'] }],
+  ['bridge (with Starsilk)', { claws: true, dash: true, jump2: true, glide: true }, { exit: 'a' }, { exits: ['a', 'b'], pickups: ['H'] }, {}],
+  ['bridge (return)', { claws: true, dash: true, jump2: true, glide: true }, { exit: 'b' }, { exits: ['a', 'b'] }, {}],
+  ['bridge (from the pillar)', { claws: true, dash: true, jump2: true, glide: true }, { x: 28 * T, y: feet(15) }, { exits: ['a', 'b'] }, {}],
+  ['dome', { claws: true, dash: true, jump2: true, glide: true }, { exit: 'a' }, { exits: ['a'] }, {}],
 ];
 (async () => {
   const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--disable-gpu'] });
@@ -35,12 +50,12 @@ const CASES = [
   page.on('pageerror', (e) => console.log('pageerror: ' + e.message));
   await page.goto('file://' + path.join(__dirname, '..', 'dist', 'index.html'), { waitUntil: 'domcontentloaded' });
   let bad = 0;
-  for (const [label, ab, start, must, mustNot, flags] of CASES) {
+  for (const [label, ab, start, must, mustNot, flags] of CASES.filter((c) => !process.env.ONLY || process.env.ONLY.split(',').includes(c[0].split(' ')[0]))) {
     const roomId = label.split(' ')[0];
     const res = await page.evaluate((roomId, ab, start, K, flags) => {
       const R = window.__rimebell, { G, Input, T, STEP } = R;
-      R.newGame(); G.state = 'pause'; Object.assign(G.save.abilities, { claws: false, dash: false, jump2: false }, ab);
-      Object.assign(G.save, { boss: true, mini: true, warden: true, knight: true, done: true }, flags || {});
+      R.newGame(); G.state = 'pause'; Object.assign(G.save.abilities, { claws: false, dash: false, jump2: false, glide: false }, ab);
+      Object.assign(G.save, { boss: true, mini: true, warden: true, knight: true, done: true, moth: true, astro: true }, flags || {});
       const room = R.loadRoom(roomId, start); G.enemies = []; G.state = 'pause';
       let seed = 987654321; const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
       const seen = new Set(), queue = [], found = { exits: {}, pickups: {}, bell: false };

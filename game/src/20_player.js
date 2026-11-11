@@ -1,12 +1,15 @@
 // ===== the hero =====
 const PH = {
   RUN: 140, GACC: 1900, AACC: 1400, GFRIC: 2200, AFRIC: 500, GRAV: 1500, MAXFALL: 520, JUMP: 490,
-  WSLIDE: 70, WJX: 165, WJY: 455, WLOCK: 0.12, WCX: 80, WCLOCK: 0.05, DASHV: 440, DASHT: 0.2, DASHCD: 0.45, RESMAX: 8, DODGE: 0.17, HEALT: 0.85, JUMP2: 430,
+  WSLIDE: 70, WJX: 165, WJY: 455, WLOCK: 0.12, WCX: 80, WCLOCK: 0.05, DASHV: 440, DASHT: 0.2, DASHCD: 0.45, RESMAX: 8, DODGE: 0.17, HEALT: 0.85, JUMP2: 430, GLIDEV: 62, GLIDERUN: 150,
 };
 const resMax = () => (G.save ? pealStrikes(G.save.stats.res, G.save) : PH.RESMAX);
 const flaskHeal = () => (eq('wardlamp') ? 3 : 2);
-const maxFlask = () => 2 + G.save.stats.spi;
-const strikeDmg = (peal) => { const st = G.save.stats; return (peal ? 3 * (1 + 0.25 * st.res) : 1) * (1 + 0.15 * st.mig) * weapon().dmg; };
+const maxFlask = () => Math.max(1, 2 + G.save.stats.spi + (armor().flask || 0));
+const strikeDmg = (peal) => {
+  const st = G.save.stats, p = G.player, keen = eq('lens') && p && p.hp >= p.maxHp ? 1.33 : 1; // Orren's Lens
+  return (peal ? 3 * (1 + 0.25 * st.res) : 1) * (1 + 0.15 * st.mig) * weapon().dmg * keen;
+};
 const moveMul = () => armor().speed || 1;
 function newPlayer() {
   return {
@@ -16,6 +19,7 @@ function newPlayer() {
     atkT: 0, atkCd: 0, atkBuf: 0, atkDir: 'side', atkFace: 1, atkId: 0, atkPeal: false, atkDone: -1,
     inv: 0, hurtT: 0, hp: 5, maxHp: 5, res: 0, dropT: 0, safeT: 0, safe: { x: 0, y: 0 },
     runPhase: 0, trail: [], dead: false, hidden: false, landT: 0, wasGround: false, flask: 2, healT: 0, dodge: 0, air2: true, wjT: 0,
+    dashId: 0, gliding: false, glideT: 0, regen: 0,
   };
 }
 
@@ -33,6 +37,9 @@ function updatePlayer(dt) {
   if (I.pressed.dash) p.dashBuf = 0.12;
   if (I.pressed.attack) p.atkBuf = 0.14;
   p.dodge = Math.max(0, p.dodge - dt);
+  // the Starwoven Robe mends slowly
+  const A = armor();
+  if (A.regen && p.hp < p.maxHp) { p.regen += dt; if (p.regen >= A.regen) { p.regen = 0; p.hp++; Sfx.play('mend'); ringFx(p.x + p.w / 2, p.y + p.h / 2, 30, '#d9d2ff', 0.4); } } else p.regen = 0;
 
   // the ember flask: a slow drink, only on firm ground, only what the last brazier gave you
   if (I.pressed.heal && p.healT <= 0 && !stunned && p.dashT <= 0) {
@@ -49,7 +56,7 @@ function updatePlayer(dt) {
   // dash
   if (p.dashBuf > 0 && ab.dash && p.dashCd <= 0 && p.canDash && !stunned && p.dashT <= 0) {
     p.dashDir = p.sliding ? -p.wallDir : (mx || p.face); p.face = p.dashDir;
-    p.dashT = PH.DASHT; p.dashCd = PH.DASHCD; p.dashBuf = 0; p.wallLock = 0; p.sliding = false; p.jumping = false; p.dodge = PH.DODGE * (armor().dodge || 1);
+    p.dashT = PH.DASHT; p.dashCd = PH.DASHCD; p.dashBuf = 0; p.dashId++; p.wallLock = 0; p.sliding = false; p.jumping = false; p.dodge = PH.DODGE * (armor().dodge || 1);
     if (!p.onGround) p.canDash = false;
     Sfx.play('dash');
     for (let i = 0; i < 6; i++) part(p.x + p.w / 2, p.y + 4 + Math.random() * 16, -p.dashDir * (40 + Math.random() * 80), (Math.random() - 0.5) * 30, 0.3, 2, '#bfeaf2');
@@ -77,6 +84,16 @@ function updatePlayer(dt) {
       if (Math.random() < 0.25) part(p.x + (mx > 0 ? p.w : 0), p.y + 4, -mx * 20, 30, 0.35, 1.5, '#dff6fb', 200);
     }
   }
+
+  // the Starsilk Mantle: hold JUMP while falling to drift
+  const wasGliding = p.gliding;
+  p.gliding = !!(ab.glide && !p.onGround && !p.sliding && I.held.jump && p.vy > PH.GLIDEV - 1 && p.dashT <= 0 && !stunned && p.healT <= 0);
+  if (p.gliding) {
+    p.vy = approach(p.vy, PH.GLIDEV, 2600 * dt); p.glideT += dt;
+    if (mx && p.wallLock <= 0) p.vx = approach(p.vx, mx * PH.GLIDERUN * moveMul(), PH.AACC * dt);
+    if (!wasGliding) { Sfx.play('glide'); for (let i = 0; i < 5; i++) part(p.x + p.w / 2 + rr(-10, 10), p.y - 2, rr(-30, 30), rr(-30, 0), 0.4, 1.5, '#e8ddff'); }
+    if (Math.random() < 0.15) part(p.x + p.w / 2 + rr(-11, 11), p.y - 3, -p.vx * 0.2, 20, 0.5, 1.5, 'rgba(232,221,255,0.8)');
+  } else p.glideT = 0;
 
   // mid-climb, a doorway or the top of the wall on the side you press toward: step straight into it
   if (ab.claws && !p.onGround && !touching && mx !== 0 && mx === p.wallDir && p.wjT > 0 && p.dashT <= 0) { p.vx = mx * PH.RUN; p.wallLock = 0; }
@@ -113,6 +130,7 @@ function updatePlayer(dt) {
   // move
   p.dropThrough = p.dropT > 0;
   moveX(p, p.vx * dt, room);
+  if (G.wind && G.wind.t > 0) { G.wind.t -= dt; moveX(p, G.wind.vx * (p.gliding ? 1.5 : 1) * dt, room); } // the Night Moth's wingbeats
   moveY(p, p.vy * dt, room);
   if (p.onGround) {
     if (!p.wasGround) { p.landT = 0.12; if (p.coyote <= 0) Sfx.play('land'); }
@@ -142,6 +160,7 @@ function updatePlayer(dt) {
       burst(p.x + p.w / 2, p.y + p.h / 2, 14, 120, '#ffd27a', 0.5, 2);
     }
     Sfx.play(p.atkPeal ? 'peal' : weapon().heavy ? 'heavy' : 'swing');
+    if (weapon().bolt && p.atkDir === 'side') fireBolt(p, strikeDmg(p.atkPeal) * weapon().bolt);
   }
 
   // scarf trail
