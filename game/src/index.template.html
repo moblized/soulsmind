@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <!--__APP_HEAD__-->
-<title>Rimebell</title>
+<title>Souls Mind</title>
 <!--__FONTS__-->
 <style>
 :root {
@@ -35,7 +35,7 @@ button[hidden] { display: none; }
 #title { align-items: flex-end; justify-content: flex-start; padding: clamp(18px, 5vw, 56px); background: linear-gradient(90deg, rgba(5, 7, 13, 0.9) 0%, rgba(5, 7, 13, 0.55) 46%, rgba(5, 7, 13, 0) 80%); }
 .titleblock { display: flex; flex-direction: column; gap: clamp(6px, 1.6vh, 14px); max-width: 620px; }
 .stage { margin: 0; font-size: 14px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--frost); }
-h1 { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(54px, min(17vw, 27vh), 132px); line-height: 0.84; letter-spacing: 0.005em; color: var(--snow); text-shadow: 0 0 46px rgba(255, 171, 61, 0.3); }
+h1 { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(50px, min(14vw, 24vh), 120px); line-height: 0.84; letter-spacing: 0.005em; color: var(--snow); text-shadow: 0 0 46px rgba(255, 171, 61, 0.3); }
 h1 span { color: var(--ember); }
 .tag { margin: 0 0 clamp(4px, 1.4vh, 12px); font-size: clamp(16px, 2.6vh + 6px, 21px); color: var(--dim); max-width: 26em; }
 .menu { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -90,16 +90,16 @@ html:not(.app) .app-only { display: none; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Rimebell game screen"></canvas>
+<canvas id="game" aria-label="Souls Mind game screen"></canvas>
 <div id="roomname" aria-live="polite"></div>
 <div id="note"></div>
 <div id="caption" role="status"></div>
 
 <div class="overlay on" id="title">
   <div class="titleblock">
-    <p class="stage">Stage one · The Lower Cloister</p>
-    <h1>Rime<span>bell</span></h1>
-    <p class="tag">A hundred winters of silence. One small flame.</p>
+    <p class="stage" id="title-stage">Level 1 · Rimebell</p>
+    <h1>Souls <span>Mind</span></h1>
+    <p class="tag" id="title-tag">A hundred winters of silence. One small flame.</p>
     <div class="menu">
       <button id="btn-continue" class="primary" type="button" hidden>Continue</button>
       <button id="btn-new" type="button">New journey</button>
@@ -152,9 +152,9 @@ html:not(.app) .app-only { display: none; }
 
 <div class="overlay" id="end">
   <div class="card">
-    <p class="stage">End of stage one</p>
-    <h2>The First Bell</h2>
-    <p>Its voice rolls down the mountain and wakes the snow from the eaves. Far above, in the dark of the upper halls, something answers.</p>
+    <p class="stage" id="end-stage">Level 1 complete</p>
+    <h2 id="end-title">The First Bell</h2>
+    <p id="end-text"></p>
     <p id="end-stats"></p>
     <div class="menu">
       <button id="btn-keep" class="primary" type="button">Keep exploring</button>

@@ -123,7 +123,7 @@ function solidAt(room, tx, ty) {
   if (tx < 0 || tx >= room.w) return true;
   if (ty < 0 || ty >= room.h) return false;
   const c = room.grid[ty][tx];
-  return c === '#' || (c === 'G' && room.gateClosed);
+  return c === '#' || c === 'X' || (c === 'G' && room.gateClosed);
 }
 function onewayAt(room, tx, ty) { return tx >= 0 && ty >= 0 && tx < room.w && ty < room.h && room.grid[ty][tx] === '='; }
 // true if there is a wall the hero can cling to on that side

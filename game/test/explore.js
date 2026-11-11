@@ -14,7 +14,17 @@ const CASES = [
   ['cloister', { claws: true, dash: true }, { exit: 'c' }, { exits: ['a', 'b', 'c', 'd'] }, {}],
   ['approach', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b'] }, {}],
   ['approach (return)', { claws: true, dash: true }, { exit: 'b' }, { exits: ['a'] }, {}],
-  ['sanctum', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'], bell: true }, {}],
+  ['sanctum', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b'], bell: true }, {}],
+  ['sanctum (door still sealed)', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'] }, { exits: ['b'] }, { done: false }],
+  // Level 2: arrives with claws and dash; the Cinder Step (jump2) waits behind the Barrow Warden
+  ['oldroad', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b', 'c'] }, {}],
+  ['barrow', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'], pickups: ['J'] }, { pickups: ['H'] }],
+  ['barrow (from crypt floor)', { claws: true, dash: true }, { x: 12 * T, y: feet(24) }, { exits: ['a'], pickups: ['J'] }, {}],
+  ['barrow (with Cinder Step)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'], pickups: ['J', 'H'] }, {}],
+  ['rampart', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'] }, { exits: ['b'] }],
+  ['rampart (with Cinder Step)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a', 'b'] }, {}],
+  ['rampart (from the Court)', { claws: true, dash: true, jump2: true }, { exit: 'b' }, { exits: ['a', 'b'] }, {}],
+  ['court', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'] }, {}],
 ];
 (async () => {
   const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--disable-gpu'] });
@@ -24,11 +34,13 @@ const CASES = [
   page.on('pageerror', (e) => console.log('pageerror: ' + e.message));
   await page.goto('file://' + path.join(__dirname, '..', 'dist', 'index.html'), { waitUntil: 'domcontentloaded' });
   let bad = 0;
-  for (const [label, ab, start, must, mustNot] of CASES) {
+  for (const [label, ab, start, must, mustNot, flags] of CASES) {
     const roomId = label.split(' ')[0];
-    const res = await page.evaluate((roomId, ab, start, K) => {
+    const res = await page.evaluate((roomId, ab, start, K, flags) => {
       const R = window.__rimebell, { G, Input, T, STEP } = R;
-      R.newGame(); G.state = 'pause'; Object.assign(G.save.abilities, { claws: false, dash: false }, ab); G.save.boss = true; G.save.mini = true; G.save.relics.spine = G.save.relics.clapper = true;
+      R.newGame(); G.state = 'pause'; Object.assign(G.save.abilities, { claws: false, dash: false, jump2: false }, ab);
+      Object.assign(G.save, { boss: true, mini: true, warden: true, knight: true, done: true }, flags || {});
+      for (const k in G.save.relics) G.save.relics[k] = true;
       const room = R.loadRoom(roomId, start); G.enemies = []; G.state = 'pause';
       let seed = 987654321; const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
       const seen = new Set(), queue = [], found = { exits: {}, pickups: {}, bell: false };
@@ -74,7 +86,7 @@ const CASES = [
       }
       Input.held.left = Input.held.right = Input.held.jump = Input.held.down = false;
       return { found, nodes, left: queue.length };
-    }, roomId, ab, start, 70);
+    }, roomId, ab, start, 70, flags || null);
     const f = res.found, problems = [];
     for (const e of must.exits || []) if (!f.exits[e]) problems.push('cannot reach exit ' + e);
     for (const k of must.pickups || []) if (!f.pickups[k]) problems.push('cannot reach relic ' + k);

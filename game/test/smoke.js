@@ -92,6 +92,7 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
         const bell = G.room.bell; G.player.x = bell.x - 30; G.player.y = bell.y - 22; G.player.face = 1; step(100, {}); step(3, { attack: true }); step(200, {}); if (document.getElementById('end').classList.contains('on')) { document.getElementById('btn-keep').click(); log.push('     end screen shown and dismissed'); } }
       ok('clapper collected, bell rung, chimes paid out', G.save.relics.clapper && G.save.done && G.save.chimes >= c0, 'chimes ' + G.save.chimes);
       run(6); G.god = false;
+      R.loadRoom('sanctum', { x: 10 * T, y: 14 * T - 22 }); G.state = 'play'; G.fadeA = 0; G.fade = null; step(30, {}); // the open west door may have taken the bot away
       G.player.res = 8; G.player.hp = 2; G.enemies = []; step(3, { attack: true }); ok('with the clapper a Peal mends', G.player.hp === 3, G.player.hp);
 
       // 7. mortal run at the boss, hazards, shell hooks

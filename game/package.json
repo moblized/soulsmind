@@ -1,11 +1,11 @@
 {
-  "name": "rimebell",
-  "version": "0.2.0",
+  "name": "soulsmind",
+  "version": "0.3.0",
   "private": true,
-  "description": "Rimebell: an action-exploration platformer set in a frozen mountain monastery.",
+  "description": "Souls Mind: a hard action-exploration platformer. Level 1 is Rimebell, Level 2 is Duskmarch.",
   "scripts": {
     "build": "node build.js",
-    "test": "node test/explore.js && node test/smoke.js"
+    "test": "node test/explore.js && node test/smoke.js && node test/level2.js && node test/app.js"
   },
   "dependencies": {
     "@fontsource/alegreya-sans": "^5.3.0",

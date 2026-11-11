@@ -75,7 +75,7 @@ const Input = {
 
 // ---------- sound (all synthesized) ----------
 const Sfx = {
-  ctx: null, out: null, muted: false, nbuf: null, musicT: 2, mood: 'calm', pulse: 0,
+  ctx: null, out: null, muted: false, nbuf: null, musicT: 2, mood: 'calm', pulse: 0, lv: 1,
   init() {
     if (this.ctx) { this.resume(); return; }
     try {
@@ -144,6 +144,15 @@ const Sfx = {
         case 'buy': this.bell(392, 0.1, 1.4); this.bell(783.99, 0.07, 1.4, 0.1); break;
         case 'deny': this.tone(160, 0.12, 'square', 0.04); break;
         case 'echo': this.bell(293.7, 0.1, 2); this.bell(440, 0.06, 2, 0.12); break;
+        case 'clang': this.tone(1240, 0.16, 'square', 0.035, 860); this.bell(1760, 0.03, 0.5); this.noise(0.05, 0.14, 3400, 2); break;
+        case 'thrust': this.noise(0.14, 0.15, 1500, 1, 500); break;
+        case 'bow': this.tone(170, 0.3, 'triangle', 0.05, 250); break;
+        case 'arrow': this.noise(0.16, 0.09, 2800, 2, 1300); break;
+        case 'step2': this.noise(0.18, 0.13, 900, 0.8, 2600); this.tone(520, 0.14, 'triangle', 0.05, 900); break;
+        case 'fire': this.noise(0.45, 0.15, 500, 0.6, 1700); break;
+        case 'heavy': this.noise(0.24, 0.2, 420, 0.7, 120); break;
+        case 'growl': this.tone(92, 0.4, 'sawtooth', 0.07, 66); break;
+        case 'gleam': this.tone(2400, 0.22, 'sine', 0.03, 3200); break;
         case 'die': this.tone(300, 0.9, 'triangle', 0.13, 50); this.noise(0.6, 0.18, 400, 0.6, 100); break;
       }
     } catch (e) {}
@@ -158,7 +167,7 @@ const Sfx = {
         if (this.pulse % 8 === 6) this.bell(155.6, 0.045, 1.2);
       } else {
         this.musicT = 2.2 + Math.random() * 4;
-        const sc = [196, 220, 261.6, 293.7, 329.6, 392, 440];
+        const sc = this.lv === 2 ? [146.8, 174.6, 196, 220, 233.1, 293.7, 349.2] : [196, 220, 261.6, 293.7, 329.6, 392, 440];
         const f = sc[(Math.random() * sc.length) | 0] * (Math.random() < 0.3 ? 2 : 1);
         this.bell(f, 0.03, 3); if (Math.random() < 0.35) this.bell(f * 1.5, 0.018, 3, 0.4);
       }

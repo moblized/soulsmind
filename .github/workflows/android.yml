@@ -26,20 +26,20 @@ jobs:
       - name: Build the APK
         env:
           VERSION_CODE: ${{ 100 + github.run_number }}
-          VERSION_NAME: 0.2.${{ github.run_number }}
+          VERSION_NAME: 0.3.${{ github.run_number }}
         run: ./android/build.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rimebell-apk
-          path: build/rimebell.apk
+          name: soulsmind-apk
+          path: build/soulsmind.apk
 
       - name: Publish a release with the APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="build-${{ github.run_number }}"
-          gh release create "$tag" build/rimebell.apk \
-            --title "Rimebell 0.2.${{ github.run_number }}" \
-            --notes "Installable APK built from ${GITHUB_SHA::7}. Open this page on your phone and tap rimebell.apk." \
+          gh release create "$tag" build/soulsmind.apk \
+            --title "Souls Mind 0.3.${{ github.run_number }}" \
+            --notes "Installable APK built from ${GITHUB_SHA::7}. Open this page on your phone and tap soulsmind.apk." \
             --latest

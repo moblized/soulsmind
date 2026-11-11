@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds a signed, installable APK at build/rimebell.apk without Gradle, using the Android packaging tools
+# Builds a signed, installable APK at build/soulsmind.apk without Gradle, using the Android packaging tools
 # from Ubuntu's repositories:
 #   sudo apt-get install -y aapt apksigner zipalign dalvik-exchange android-sdk-platform-23
 # Also needs Node.js 18+ and a JDK (8 or newer).
@@ -10,8 +10,8 @@ AND="$ROOT/android"
 OUT="$ROOT/build"
 WORK="$OUT/apk-work"
 ANDROID_JAR="${ANDROID_JAR:-/usr/lib/android-sdk/platforms/android-23/android.jar}"
-VERSION_CODE="${VERSION_CODE:-1}"
-VERSION_NAME="${VERSION_NAME:-0.2.0}"
+VERSION_CODE="${VERSION_CODE:-2}"
+VERSION_NAME="${VERSION_NAME:-0.3.0}"
 KEYSTORE="${KEYSTORE:-$AND/rimebell-debug.keystore}"
 KS_PASS="${KS_PASS:-android}"
 KS_ALIAS="${KS_ALIAS:-rimebell}"
@@ -51,7 +51,7 @@ if [ ! -f "$KEYSTORE" ]; then
 fi
 apksigner sign --ks "$KEYSTORE" --ks-pass "pass:$KS_PASS" --key-pass "pass:$KS_PASS" --ks-key-alias "$KS_ALIAS" \
   --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
-  --out "$OUT/rimebell.apk" "$WORK/aligned.apk"
-apksigner verify "$OUT/rimebell.apk"
-rm -f "$OUT/rimebell.apk.idsig"
-echo "Built $OUT/rimebell.apk ($(du -h "$OUT/rimebell.apk" | cut -f1), version $VERSION_NAME / $VERSION_CODE)"
+  --out "$OUT/soulsmind.apk" "$WORK/aligned.apk"
+apksigner verify "$OUT/soulsmind.apk"
+rm -f "$OUT/soulsmind.apk.idsig"
+echo "Built $OUT/soulsmind.apk ($(du -h "$OUT/soulsmind.apk" | cut -f1), version $VERSION_NAME / $VERSION_CODE)"

@@ -4,7 +4,11 @@ let canvas = null, ctx = null;
 const PAL = {
   indoor: { edge: ['#2a3552', '#2e3a59', '#27314c'], inner: ['#151c30', '#171f35', '#131a2c'], side: '#42527a', under: '#0f1526', snow: '#dcebf2', shade: 'rgba(110,160,195,0.4)' },
   outdoor: { edge: ['#31405f', '#364667', '#2c3a57'], inner: ['#18213a', '#1b2540', '#161e35'], side: '#4c5f8a', under: '#111a2e', snow: '#eef6fa', shade: 'rgba(110,160,195,0.45)' },
+  // Duskmarch: weathered sandstone under dry golden grass, and crypt stone the colour of old bone
+  dusk: { edge: ['#4a3a3a', '#52403d', '#443535'], inner: ['#261c20', '#2a1f23', '#22191c'], side: '#6b5450', under: '#1a1316', snow: '#c9a45a', shade: 'rgba(120,70,40,0.5)', drip: '#3a2c22', dusk: true },
+  crypt: { edge: ['#3a3230', '#3f3633', '#352d2b'], inner: ['#1a1514', '#1d1716', '#171211', '#1a1514'], side: '#5a4c46', under: '#110d0c', snow: '#6f6458', shade: 'rgba(0,0,0,0.35)', drip: '#2c2522', dusk: true },
 };
+const isOpen = (room) => room.kind === 'outdoor' || room.kind === 'dusk';
 const snow = []; for (let i = 0; i < 90; i++) snow.push({ x: Math.random(), y: Math.random(), z: 0.4 + Math.random() * 0.6, ph: Math.random() * TAU });
 
 function layout() {
@@ -44,6 +48,8 @@ function ridge(c, a, par, base, amp, col, seed, freq) {
 }
 function drawBackground(c) {
   const a = View.area, s = View.scale, t = G.time;
+  if (G.room.kind === 'dusk') { drawDuskSky(c, a, s, t); return; }
+  if (G.room.kind === 'crypt') { drawCryptWall(c, a, s, t); return; }
   if (G.room.kind === 'outdoor') {
     const g = c.createLinearGradient(0, a.y, 0, a.y + a.h); g.addColorStop(0, '#060a1c'); g.addColorStop(0.55, '#12264a'); g.addColorStop(1, '#2c5570');
     c.fillStyle = g; c.fillRect(a.x, a.y, a.w, a.h);
@@ -89,11 +95,11 @@ function drawTiles(c) {
   const room = G.room, pal = PAL[room.kind], V = View;
   const x0 = Math.max(0, Math.floor(G.cam.x / T) - 1), x1 = Math.min(room.w - 1, Math.floor((G.cam.x + V.w) / T) + 1);
   const y0 = Math.max(0, Math.floor(G.cam.y / T) - 1), y1 = Math.min(room.h - 1, Math.floor((G.cam.y + V.h) / T) + 1);
-  const sol = (x, y) => (x < 0 || x >= room.w ? true : y < 0 ? room.kind === 'indoor' : y >= room.h ? true : room.grid[y][x] === '#');
+  const sol = (x, y) => (x < 0 || x >= room.w ? true : y < 0 ? !isOpen(room) : y >= room.h ? true : room.grid[y][x] === '#' || room.grid[y][x] === 'X');
   // rock beyond the room's edges
   c.fillStyle = pal.inner[1];
   c.fillRect(-2000, -2000, 2000, room.h * T + 4000); c.fillRect(room.w * T, -2000, 2000, room.h * T + 4000);
-  if (room.kind === 'indoor') { c.fillRect(0, -2000, room.w * T, 2000); c.fillRect(0, room.h * T, room.w * T, 2000); }
+  if (!isOpen(room)) { c.fillRect(0, -2000, room.w * T, 2000); c.fillRect(0, room.h * T, room.w * T, 2000); }
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     const ch = room.grid[ty][tx]; if (ch === '.') continue;
     const x = tx * T, y = ty * T, h = hash2(tx, ty);
@@ -105,12 +111,25 @@ function drawTiles(c) {
       if (!r) { c.fillStyle = pal.side; c.fillRect(x + T - 2, y, 2, T); }
       if (!d) {
         c.fillStyle = pal.under; c.fillRect(x, y + T - 3, T, 3);
-        if (h > 0.45) { const ix = x + 4 + h * 12, il = 4 + h * 9; c.fillStyle = '#9fd4e2'; c.beginPath(); c.moveTo(ix - 2.5, y + T); c.lineTo(ix + 2.5, y + T); c.lineTo(ix, y + T + il); c.closePath(); c.fill(); }
+        if (h > 0.45 && !pal.dusk) { const ix = x + 4 + h * 12, il = 4 + h * 9; c.fillStyle = '#9fd4e2'; c.beginPath(); c.moveTo(ix - 2.5, y + T); c.lineTo(ix + 2.5, y + T); c.lineTo(ix, y + T + il); c.closePath(); c.fill(); }
+        else if (h > 0.5 && pal.dusk) { c.strokeStyle = pal.drip; c.lineWidth = 1.2; c.beginPath(); c.moveTo(x + 6 + h * 10, y + T); c.quadraticCurveTo(x + 9 + h * 10, y + T + 6, x + 5 + h * 12, y + T + 6 + h * 8); c.stroke(); }
       }
       if (!u) {
         c.fillStyle = pal.snow; c.fillRect(x - 0.5, y - 1.5, T + 1, 5.5);
         c.beginPath(); c.ellipse(x + 5 + h * 14, y - 1, 6 + h * 4, 2.6, 0, Math.PI, 0); c.fill();
         c.fillStyle = pal.shade; c.fillRect(x, y + 4, T, 1.5);
+      }
+    } else if (ch === 'X') { // a sealed door: stone slab with a bell rune that has not woken yet
+      c.fillStyle = '#1d2236'; c.fillRect(x, y, T + 0.5, T + 0.5); c.fillStyle = '#2a3150'; c.fillRect(x + 2, y + 2, T - 4, T - 4);
+      if (tileAt(room, tx, ty + 1) === 'X') { c.strokeStyle = 'rgba(255,207,122,' + (0.35 + 0.2 * Math.sin(G.time * 2)) + ')'; c.lineWidth = 1.5; c.beginPath(); c.arc(x + T / 2, y + T, 7, 0, TAU); c.stroke(); }
+    } else if (ch === '=' && pal.dusk) {
+      c.fillStyle = '#4a3a2c'; c.fillRect(x, y, T + 0.5, 6); c.fillStyle = '#2b2018'; c.fillRect(x, y + 5, T + 0.5, 1.5);
+      c.fillStyle = '#a8894e'; c.fillRect(x, y - 0.5, T + 0.5, 1.6);
+    } else if ((ch === '^' || ch === 'v') && pal.dusk) { // broken spears driven into the ground
+      for (let i = 0; i < 3; i++) {
+        const bx = x + 4 + i * 8, lean = (hash2(tx * 3 + i, ty) - 0.5) * 4, top = y + T - 14 - hash2(tx + i, ty * 5) * 8;
+        c.strokeStyle = '#3b2c22'; c.lineWidth = 2; c.beginPath(); c.moveTo(bx, y + T); c.lineTo(bx + lean, top); c.stroke();
+        c.fillStyle = '#b9b2a4'; c.beginPath(); c.moveTo(bx + lean - 2.5, top + 2); c.lineTo(bx + lean + 2.5, top + 2); c.lineTo(bx + lean, top - 6); c.closePath(); c.fill();
       }
     } else if (ch === '=') {
       c.fillStyle = '#3b2e2a'; c.fillRect(x, y, T + 0.5, 6); c.fillStyle = '#261d1b'; c.fillRect(x, y + 5, T + 0.5, 1.5);
@@ -125,9 +144,9 @@ function drawTiles(c) {
     } else if (ch === 'G') {
       const k = room.gateK || 0; if (k <= 0.01) continue;
       const top = tileAt(room, tx, ty - 1) !== 'G'; if (!top) continue;
-      const hh = 2 * T * k; c.fillStyle = 'rgba(160,220,240,0.18)'; c.fillRect(x + 2, y, T - 4, hh);
-      c.fillStyle = '#a6dcea'; for (let i = 0; i < 3; i++) c.fillRect(x + 4 + i * 7, y, 3, hh);
-      c.fillStyle = '#6fb3c8'; c.fillRect(x + 2, y + hh - 4, T - 4, 3);
+      const hh = 2 * T * k; c.fillStyle = pal.dusk ? 'rgba(40,30,25,0.4)' : 'rgba(160,220,240,0.18)'; c.fillRect(x + 2, y, T - 4, hh);
+      c.fillStyle = pal.dusk ? '#5a4c40' : '#a6dcea'; for (let i = 0; i < 3; i++) c.fillRect(x + 4 + i * 7, y, 3, hh);
+      c.fillStyle = pal.dusk ? '#8a7356' : '#6fb3c8'; c.fillRect(x + 2, y + hh - 4, T - 4, 3);
     } else if (room.def.exits[ch]) {
       const g = c.createLinearGradient(tx === 0 ? x + T : x, 0, tx === 0 ? x : x + T, 0);
       g.addColorStop(0, 'rgba(150,200,235,0)'); g.addColorStop(1, 'rgba(150,200,235,0.16)'); c.fillStyle = g; c.fillRect(x, y, T, T);
@@ -229,7 +248,7 @@ function drawPlayer(c) {
   c.strokeStyle = '#2a1c16'; c.lineWidth = 2.4; c.lineCap = 'round';
   c.beginPath(); c.moveTo(-2.5, -6); c.lineTo(-2.5 + sw, air ? -2.5 : 0); c.moveTo(2.5, -6); c.lineTo(2.5 - sw, air ? -1 : 0); c.stroke();
   // staff on the back, with its small bell
-  if (p.atkT <= 0) { c.strokeStyle = '#4a352b'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-4, -4); c.lineTo(-8, -24); c.stroke(); c.fillStyle = p.res >= PH.RESMAX ? '#fff0b0' : '#e2b64f'; c.beginPath(); c.arc(-8.4, -25.5, 2.3, 0, TAU); c.fill(); }
+  if (p.atkT <= 0) { c.strokeStyle = '#4a352b'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-4, -4); c.lineTo(-8, -24); c.stroke(); c.fillStyle = p.res >= resMax() ? '#fff0b0' : '#e2b64f'; c.beginPath(); c.arc(-8.4, -25.5, 2.3, 0, TAU); c.fill(); }
   // bell-shaped coat
   c.fillStyle = '#f29a2e'; c.beginPath(); c.moveTo(-4, -15); c.quadraticCurveTo(-8.5, -9, -8.5, -4.5); c.lineTo(8.5, -4.5); c.quadraticCurveTo(8.5, -9, 4, -15); c.closePath(); c.fill();
   c.fillStyle = '#d97a1e'; c.beginPath(); c.moveTo(-4, -15); c.quadraticCurveTo(-8.5, -9, -8.5, -4.5); c.lineTo(-4.5, -4.5); c.quadraticCurveTo(-4, -10, -1, -15); c.closePath(); c.fill();
@@ -246,13 +265,14 @@ function drawPlayer(c) {
     else if (p.atkDir === 'down') drawSlash(c, cx, fy, Math.PI / 2, r, k, p.atkPeal);
     else drawSlash(c, cx + p.atkFace * 6, cy - 2, p.atkFace > 0 ? 0 : Math.PI, r, k, p.atkPeal);
   }
-  if (p.res >= PH.RESMAX) glow(c, cx, p.y + 4, 26 + Math.sin(t * 8) * 4, 'rgba(255,225,130,0.35)');
+  if (p.res >= resMax()) glow(c, cx, p.y + 4, 26 + Math.sin(t * 8) * 4, 'rgba(255,225,130,0.35)');
   if (p.healT > 0) glow(c, cx, p.y + 10, 30 + (1 - p.healT / PH.HEALT) * 26, 'rgba(255,170,70,0.4)');
 }
 
 function drawEnemies(c) {
   const t = G.time;
   for (const e of G.enemies) {
+    if (FOES[e.type].dusk) { drawDuskFoe(c, e, t); continue; }
     const cx = e.x + e.w / 2, white = e.flash > 0;
     if (e.type === 'r') {
       c.save(); c.translate(cx, e.y + e.h); c.scale(e.dir, 1);
@@ -313,6 +333,8 @@ function drawMatriarch(c, b) {
 function drawBoss(c) {
   const b = G.boss; if (!b) return;
   if (b.kind === 'matriarch') { drawMatriarch(c, b); return; }
+  if (b.kind === 'warden') { drawWarden(c, b); return; }
+  if (b.kind === 'varhelm') { drawVarhelm(c, b); return; }
   const t = G.time, A = ARENA, white = b.flash > 0;
   const jitter = b.state === 'slamHold' || b.state === 'dying' || b.state === 'enrage' ? (Math.random() - 0.5) * 3 : 0;
   const cx = b.x + b.w / 2 + jitter;
@@ -348,8 +370,10 @@ function drawShots(c) {
   for (const s of G.shots) {
     if (s.k === 'orb') { glow(c, s.x, s.y, 20, 'rgba(160,230,250,0.4)'); c.fillStyle = '#eafcff'; c.beginPath(); c.arc(s.x, s.y, s.r, 0, TAU); c.fill(); c.fillStyle = '#8fd3e0'; c.beginPath(); c.arc(s.x, s.y, s.r * 0.5, 0, TAU); c.fill(); }
     else if (s.k === 'wave') {
-      for (let i = 0; i < 3; i++) { const bx = s.x + i * 5, h = s.h * (0.6 + 0.4 * Math.abs(Math.sin(t * 20 + i * 2))); c.fillStyle = i === 1 ? '#eafcff' : '#9fd8e6'; c.beginPath(); c.moveTo(bx - 1, s.y + s.h); c.lineTo(bx + 7, s.y + s.h); c.lineTo(bx + 3 + s.dir * 3, s.y + s.h - h); c.closePath(); c.fill(); }
-    } else {
+      const dk = G.room.level === 2;
+      for (let i = 0; i < 3; i++) { const bx = s.x + i * 5, h = s.h * (0.6 + 0.4 * Math.abs(Math.sin(t * 20 + i * 2))); c.fillStyle = dk ? (i === 1 ? '#ffe6a0' : '#c98a4a') : i === 1 ? '#eafcff' : '#9fd8e6'; c.beginPath(); c.moveTo(bx - 1, s.y + s.h); c.lineTo(bx + 7, s.y + s.h); c.lineTo(bx + 3 + s.dir * 3, s.y + s.h - h); c.closePath(); c.fill(); }
+    } else if (s.k !== 'ice') drawDuskShot(c, s, t);
+    else {
       if (s.warn > 0) { c.fillStyle = 'rgba(190,240,255,' + (0.1 + 0.12 * Math.abs(Math.sin(t * 16))) + ')'; c.fillRect(s.x + 3, s.y, 2, s.floor - s.y); }
       const wob = s.warn > 0 ? Math.sin(t * 40) * 1 : 0;
       c.fillStyle = '#c9f0f7'; c.beginPath(); c.moveTo(s.x + wob, s.y); c.lineTo(s.x + s.w + wob, s.y); c.lineTo(s.x + s.w / 2 + wob, s.y + s.h); c.closePath(); c.fill();
@@ -367,14 +391,15 @@ function drawParticles(c) {
 }
 
 function drawSnow(c, dt) {
-  const a = View.area, out = G.room.kind === 'outdoor', n = out ? snow.length : 34, wind = out ? 60 : 10;
-  c.fillStyle = '#eaf4f9';
+  const a = View.area, out = isOpen(G.room), dusk = G.room.kind === 'dusk' || G.room.kind === 'crypt';
+  const n = out ? (dusk ? 60 : snow.length) : 34, wind = out ? (dusk ? 30 : 60) : 10;
+  c.fillStyle = dusk ? (out ? '#ffcf7a' : '#bfae94') : '#eaf4f9';
   for (let i = 0; i < n; i++) {
     const s = snow[i]; s.ph += dt * 1.3;
-    s.x += ((-wind * s.z + Math.sin(s.ph) * 8) * dt) / a.w; s.y += ((out ? 46 : 16) * s.z * dt) / a.h;
+    s.x += ((-wind * s.z + Math.sin(s.ph) * 8) * dt) / a.w; s.y += ((dusk ? (out ? 10 : 6) : out ? 46 : 16) * s.z * dt) / a.h;
     if (s.x < -0.02) s.x += 1.04; if (s.y > 1.02) { s.y -= 1.04; s.x = Math.random(); }
     const px = a.x + (((s.x * a.w - G.cam.x * View.scale * 0.3 * s.z) % a.w) + a.w) % a.w, py = a.y + (((s.y * a.h - G.cam.y * View.scale * 0.3 * s.z) % a.h) + a.h) % a.h;
-    c.globalAlpha = (out ? 0.75 : 0.4) * s.z; const z = s.z * 2.1; c.fillRect(px, py, z, z);
+    c.globalAlpha = (dusk ? 0.45 + 0.3 * Math.sin(s.ph * 2) : out ? 0.75 : 0.4) * s.z; const z = s.z * (dusk ? 1.6 : 2.1); c.fillRect(px, py, z, z);
   }
   c.globalAlpha = 1;
 }
@@ -387,8 +412,8 @@ function drawHUD(c) {
     if (i < p.hp) { c.fillStyle = '#e8641b'; flamePath(c, x, y0, 9); c.fill(); c.fillStyle = '#ffb347'; flamePath(c, x, y0 + 1.5, 6); c.fill(); c.fillStyle = '#fff0c4'; flamePath(c, x, y0 + 3, 2.8); c.fill(); }
     else { c.strokeStyle = 'rgba(200,222,236,0.4)'; c.lineWidth = 1.4; flamePath(c, x, y0, 8); c.stroke(); }
   }
-  const full = p.res >= PH.RESMAX, ry = y0 + 19;
-  for (let i = 0; i < PH.RESMAX; i++) { c.fillStyle = i < p.res ? (full ? (Math.sin(t * 10) > 0 ? '#fff0b0' : '#e2b64f') : '#e2b64f') : 'rgba(220,235,245,0.2)'; c.fillRect(x0 - 8 + i * 10, ry, 7, 3.5); }
+  const rm = resMax(), full = p.res >= rm, ry = y0 + 19;
+  for (let i = 0; i < rm; i++) { c.fillStyle = i < p.res ? (full ? (Math.sin(t * 10) > 0 ? '#fff0b0' : '#e2b64f') : '#e2b64f') : 'rgba(220,235,245,0.2)'; c.fillRect(x0 - 8 + i * 10, ry, 7, 3.5); }
   // ember flask and chimes
   const fx = x0 + p.maxHp * 21 + 6, mf = maxFlask();
   for (let i = 0; i < mf; i++) {
@@ -402,8 +427,9 @@ function drawHUD(c) {
   if (b && bossAwake(b) && b.state !== 'intro') {
     const w = Math.min(a.w * 0.5, 340), x = a.x + (a.w - w) / 2, y = a.y + a.h - 24;
     c.font = '500 17px "Grenze Gotisch", "Palatino Linotype", serif'; c.textAlign = 'center'; c.fillStyle = '#dcebf2'; c.fillText(b.name, a.x + a.w / 2, y - 8);
-    c.fillStyle = 'rgba(8,12,22,0.7)'; c.fillRect(x - 2, y - 2, w + 4, 9); c.fillStyle = '#3a4480'; c.fillRect(x, y, w, 5);
-    c.fillStyle = b.phase === 2 ? '#bff4ff' : '#8fd3e0'; c.fillRect(x, y, w * clamp(b.hp / b.maxHp, 0, 1), 5);
+    const dk = G.room.level === 2;
+    c.fillStyle = 'rgba(8,12,22,0.7)'; c.fillRect(x - 2, y - 2, w + 4, 9); c.fillStyle = dk ? '#4a2a2a' : '#3a4480'; c.fillRect(x, y, w, 5);
+    c.fillStyle = dk ? (b.phase === 2 ? '#ffe6a0' : '#d9a54a') : b.phase === 2 ? '#bff4ff' : '#8fd3e0'; c.fillRect(x, y, w * clamp(b.hp / b.maxHp, 0, 1), 5);
     c.fillStyle = 'rgba(8,12,22,0.8)'; c.fillRect(x + w / 2 - 1, y - 2, 2, 9);
   }
 }

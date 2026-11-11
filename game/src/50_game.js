@@ -1,13 +1,26 @@
 // ===== game flow, saving, UI, main loop =====
 const KEY = 'rimebell.save.v1';
 const UPS = {
-  staff: { name: 'Temper the staff', what: 'Strikes hit harder', costs: [120, 300] },
-  flask: { name: 'Deepen the flask', what: 'One more drink per rest', costs: [80, 160, 280] },
-  lantern: { name: 'Feed the lantern', what: 'One more ember of health', costs: [100, 200, 350] },
+  staff: { name: 'Temper the staff', what: 'Strikes hit harder', costs: [120, 300, 600] },
+  flask: { name: 'Deepen the flask', what: 'One more drink per rest', costs: [80, 160, 280, 480] },
+  lantern: { name: 'Feed the lantern', what: 'One more ember of health', costs: [100, 200, 350, 560] },
 };
 const RELICS = {
   spine: { name: "Matriarch's Spine", what: 'Your strikes reach a third farther.' },
   clapper: { name: 'The Swallowed Clapper', what: 'Your Peal mends one ember.' },
+  wardlamp: { name: "Warden's Lantern", what: 'Each drink from the flask mends three embers.' },
+  oath: { name: 'Oath of the Unsetting', what: 'Your Peal charges in six strikes instead of eight.' },
+};
+// each boss: the save flag it sets, its relic, how many chimes it drops, and the ability it sits on (if any)
+const BOSSES = {
+  cellar: { flag: 'mini', spawn: () => spawnMatriarch(), A: () => PIT, relic: 'spine', chimes: 80, hides: '1', line: 'The pit falls quiet' },
+  sanctum: { flag: 'boss', spawn: null, A: () => ARENA, relic: 'clapper', chimes: 150, line: 'The Abbot is silent at last' },
+  barrow: { flag: 'warden', spawn: () => spawnWarden(), A: () => WARD, relic: 'wardlamp', chimes: 220, hides: 'J', line: 'The lantern goes dark' },
+  court: { flag: 'knight', spawn: () => spawnVarhelm(), A: () => COURT, relic: 'oath', chimes: 420, line: 'The sun over Duskmarch sets at last' },
+};
+const ENDS = {
+  1: { stage: 'Level 1 complete', title: 'The First Bell', text: 'Its voice rolls down the mountain and wakes the snow from the eaves. Behind you, the west door of the sanctum grinds open onto a road that leads down into a kingdom at dusk.' },
+  2: { stage: 'Level 2 complete', title: 'Sunset', text: 'Varhelm lowers his sword, and the sun over Duskmarch finally sets. In the first true dark in a hundred years, a light moves on the far mountains. More levels are coming.' },
 };
 function relicPickup(id, x, y) { return { kind: 'K', relic: id, key: 'relic:' + id, x, y }; }
 const Store = {
@@ -17,14 +30,15 @@ const Store = {
 };
 function freshSave() {
   return {
-    v: 2, abilities: { claws: false, dash: false }, maxHp: 5, lit: { 'gate:3,12': 1 }, got: {}, visited: {}, boss: false, mini: false, done: false, time: 0, deaths: 0,
-    chimes: 0, echo: null, up: { staff: 0, flask: 0, lantern: 0 }, relics: { spine: false, clapper: false },
+    v: 3, abilities: { claws: false, dash: false, jump2: false }, maxHp: 5, lit: { 'gate:3,12': 1 }, got: {}, visited: {},
+    boss: false, mini: false, done: false, warden: false, knight: false, done2: false, time: 0, deaths: 0,
+    chimes: 0, echo: null, up: { staff: 0, flask: 0, lantern: 0 }, relics: { spine: false, clapper: false, wardlamp: false, oath: false },
     brazier: { room: 'gate', x: 3 * T + T / 2 + 8, y: 13 * T - 22, key: 'gate:3,12' },
   };
 }
 function normalizeSave(s) {
   const f = freshSave(); if (!s || typeof s !== 'object' || !ROOMS[(s.brazier || {}).room]) return f;
-  return Object.assign(f, s, { v: 2, abilities: Object.assign(f.abilities, s.abilities || {}), up: Object.assign(f.up, s.up || {}), relics: Object.assign(f.relics, s.relics || {}) });
+  return Object.assign(f, s, { v: 3, abilities: Object.assign(f.abilities, s.abilities || {}), up: Object.assign(f.up, s.up || {}), relics: Object.assign(f.relics, s.relics || {}) });
 }
 function persist() { if (G.save) Store.set(G.save); }
 // device settings live apart from the journey, so a new journey keeps them
@@ -46,19 +60,20 @@ function updateFade(dt) {
 
 function loadRoom(id, spawn) {
   const def = ROOMS[id], grid = buildRoom(def.w, def.h, def.build), S = G.save, p = G.player;
-  const room = { id, def, w: def.w, h: def.h, grid, kind: def.kind, gateClosed: false, gateK: 0, braziers: [], signs: [], pickups: [], exitTiles: {}, bell: null };
+  const room = { id, def, w: def.w, h: def.h, grid, kind: def.kind, level: def.level || 1, gateClosed: false, gateK: 0, braziers: [], signs: [], pickups: [], exitTiles: {}, bell: null, hidden: null };
+  const cfg = BOSSES[id];
   for (const d of G.drops) S.chimes += d.v; // chimes still in the air come with you
-  G.room = room; G.enemies = []; G.shots = []; G.parts = []; G.drops = []; G.boss = null; G.later = G.later.filter((l) => l.keep); G.nearSign = null; G.nearProp = null; Sfx.mood = 'calm';
+  G.room = room; G.enemies = []; G.shots = []; G.parts = []; G.drops = []; G.boss = null; G.later = G.later.filter((l) => l.keep); G.nearSign = null; G.nearProp = null; Sfx.mood = 'calm'; Sfx.lv = room.level;
   for (let y = 0; y < def.h; y++) for (let x = 0; x < def.w; x++) {
     const ch = grid[y][x]; let clear = true;
     if (ch === 'B') { const key = id + ':' + x + ',' + y; room.braziers.push({ x: x * T + T / 2, y: (y + 1) * T, key, lit: !!S.lit[key] }); }
     else if (ch === 'S') room.signs.push({ x: x * T + T / 2, y: (y + 1) * T, text: def.signs[x + ',' + y] || '' });
-    else if (ch === '1' || ch === '2' || ch === 'H') {
+    else if (ch === '1' || ch === '2' || ch === 'H' || ch === 'J') {
       const key = id + ':' + ch, pk = { kind: ch, key, x: x * T + T / 2, y: y * T + T / 2 };
-      if (ch === '1' && !S.mini) room.clawSpot = pk; // the Matriarch sleeps on these
+      if (cfg && cfg.hides === ch && !S[cfg.flag]) room.hidden = pk; // a boss sits on it
       else if (!S.got[key]) room.pickups.push(pk);
     }
-    else if (ch === 'r' || ch === 'w' || ch === 'm') spawnEnemy(ch, x, y);
+    else if (FOES[ch]) spawnEnemy(ch, x, y);
     else if (ch === 'Z') { /* the Abbot arrives when the hero steps in */ }
     else if (ch === 'L') room.bell = { x: x * T + T / 2, y: (y + 1) * T, active: !!S.boss, drop: S.boss ? 1 : 0, swing: 0, hitId: -1 };
     else { clear = false; if (def.exits[ch]) (room.exitTiles[ch] = room.exitTiles[ch] || []).push({ x, y }); }
@@ -69,8 +84,12 @@ function loadRoom(id, spawn) {
     p.y = (maxY + 1) * T - p.h;
     if (ts[0].x === 0) { p.x = T + 14; p.face = 1; } else { p.x = ts[0].x * T - 14 - p.w; p.face = -1; }
   } else { p.x = spawn.x; p.y = spawn.y; }
-  if (id === 'cellar') { if (!S.mini) spawnMatriarch(); else if (!S.relics.spine) room.pickups.push(relicPickup('spine', 28 * T, PIT.floor - 14)); }
-  if (id === 'sanctum' && S.boss && !S.relics.clapper) room.pickups.push(relicPickup('clapper', 8 * T, ARENA.floor - 14));
+  // doors that stay sealed until something is done
+  for (const L in def.locks || {}) if (!S[def.locks[L]]) for (const t of room.exitTiles[L] || []) grid[t.y][t.x] = 'X';
+  if (cfg) {
+    if (!S[cfg.flag]) { if (cfg.spawn) cfg.spawn(); }
+    else if (!S.relics[cfg.relic]) { const A = cfg.A(); room.pickups.push(relicPickup(cfg.relic, A.x0 + 7 * T, A.floor - 14)); }
+  }
   if (S.echo && S.echo.room === id) room.echo = S.echo;
   p.vx = 0; p.vy = 0; p.dashT = 0; p.atkT = 0; p.healT = 0; p.sliding = false; p.jumping = false; p.hurtT = 0; p.dead = false; p.hidden = false;
   p.safe.x = p.x; p.safe.y = p.y; p.trail.length = 0; p.wasGround = true; p.coyote = 0;
@@ -92,7 +111,17 @@ function updateCamera(dt, snap) {
 function startTransition(to, at) {
   if (G.state !== 'play') return;
   G.state = 'trans';
-  fadeOut(0.16, () => { loadRoom(to, { exit: at }); G.state = 'play'; banner(G.room.def.name); });
+  const from = levelOf(G.room.id);
+  fadeOut(0.16, () => { loadRoom(to, { exit: at }); G.state = 'play'; enterBanner(from); });
+}
+function enterBanner(fromLevel) {
+  const lv = G.room.level;
+  if (lv !== fromLevel) banner('Level ' + lv + ' · ' + LEVELS[lv].name); else banner(G.room.def.name);
+}
+function openSeal(L) {
+  const room = G.room;
+  for (const t of room.exitTiles[L] || []) { room.grid[t.y][t.x] = L; burst(t.x * T + T / 2, t.y * T + T / 2, 10, 90, '#ffcf7a', 0.7, 2.5, -20); }
+  Sfx.play('slam'); G.shake = Math.max(G.shake, 6);
 }
 function killPlayer() {
   const p = G.player, S = G.save; p.dead = true; G.state = 'dead'; S.deaths++; Sfx.play('die'); Sfx.mood = 'calm'; buzz(240);
@@ -118,24 +147,21 @@ function bossDefeated() {
   const b = G.boss, cx = b.x + b.w / 2, cy = b.y + b.h / 2, S = G.save, room = G.room;
   burst(cx, cy, 40, 240, '#bff4ff', 1.1, 3, 100); burst(cx, cy, 20, 160, '#ffd27a', 1.2, 3, 60); ringFx(cx, cy, 160, '#eafcff', 0.8);
   G.boss = null; G.shots.length = 0; Sfx.mood = 'calm'; Sfx.play('shatter'); buzz(180);
-  // loot: a heap of chimes and the boss's relic
-  if (b.kind === 'abbot') {
-    S.boss = true; room.gateClosed = false; if (room.bell) room.bell.active = true;
-    dropChimes(cx, cy, 150); if (!S.relics.clapper) room.pickups.push(relicPickup('clapper', clamp(cx, ARENA.x0 + 40, ARENA.x1 - 40), ARENA.floor - 14));
-    banner('The Abbot is silent at last');
-  } else {
-    S.mini = true; dropChimes(cx, cy, 80);
-    if (!S.relics.spine) room.pickups.push(relicPickup('spine', clamp(cx, PIT.x0 + 30, PIT.x1 - 30), PIT.floor - 14));
-    if (room.clawSpot && !S.got[room.clawSpot.key]) room.pickups.push(room.clawSpot);
-    banner('The pit falls quiet');
-  }
+  // loot: a heap of chimes, the boss's relic, and whatever it was guarding
+  const cfg = BOSSES[room.id], A = b.A;
+  S[cfg.flag] = true; room.gateClosed = false;
+  dropChimes(cx, cy, cfg.chimes);
+  if (!S.relics[cfg.relic]) room.pickups.push(relicPickup(cfg.relic, clamp(cx, A.x0 + 40, A.x1 - 40), A.floor - 14));
+  if (room.hidden && !S.got[room.hidden.key]) { room.pickups.push(room.hidden); room.hidden = null; }
+  if (room.bell) room.bell.active = true;
+  banner(cfg.line);
   persist();
 }
 function ringBell() {
   const bell = G.room.bell; bell.swing = 1; Sfx.play('greatbell'); G.shake = Math.max(G.shake, 8);
   for (let i = 0; i < 3; i++) part(bell.x, bell.y - 36, 90 + i * 70, 0, 0.7 + i * 0.25, 0, '#ffd27a', 0, 2);
   burst(bell.x, bell.y - 30, 20, 140, '#ffd27a', 0.9, 2.5, -30);
-  if (!G.save.done) { G.save.done = true; persist(); later(2.2, showEnd, true); }
+  if (!G.save.done) { G.save.done = true; openSeal('b'); persist(); later(2.2, () => showEnd(1), true); }
 }
 function collect(k) {
   const S = G.save, p = G.player; S.got[k.key] = 1;
@@ -143,7 +169,11 @@ function collect(k) {
   Sfx.play('pickup'); ringFx(k.x, k.y, 70, '#eafcff', 0.6); burst(k.x, k.y, 24, 150, k.kind === 'H' || k.kind === 'K' ? '#ffb347' : '#bff4ff', 0.9, 2.5);
   if (k.kind === '1') { S.abilities.claws = true; toast('Ice Claws', 'Press toward a wall in mid-air to cling. {J} leaps away. Climb by leaping back onto the same wall, or between two.'); }
   else if (k.kind === '2') { S.abilities.dash = true; toast('Gale Sash', '{D} surges forward, on the ground or in the air. One surge per leap.'); layout(); }
-  else if (k.kind === 'K') { S.relics[k.relic] = true; toast(RELICS[k.relic].name, 'Boss relic. ' + RELICS[k.relic].what); }
+  else if (k.kind === 'J') { S.abilities.jump2 = true; toast('Cinder Step', 'Press {J} again in mid-air to leap off a burst of embers. Once per leap; the ground or a wall gives it back.'); }
+  else if (k.kind === 'K') {
+    S.relics[k.relic] = true; toast(RELICS[k.relic].name, 'Boss relic. ' + RELICS[k.relic].what);
+    if (k.relic === 'oath' && !S.done2) { S.done2 = true; later(0.6, () => showEnd(2), true); }
+  }
   else { S.maxHp++; p.maxHp = S.maxHp; p.hp = p.maxHp; toast('Ember Shard', 'Your lantern holds one more ember.'); }
   persist();
 }
@@ -186,23 +216,38 @@ function resolveCombat() {
   if (p.atkT > 0) {
     const ab = attackBox(p), dmg = strikeDmg(p.atkPeal); let hit = false;
     const dirX = p.atkDir === 'side' ? p.atkFace : 0, dirY = p.atkDir === 'up' ? -1 : p.atkDir === 'down' ? 1 : 0;
-    for (const e of G.enemies) if (!e.dead && e.hitId !== p.atkId && overlap(ab, e)) { e.hitId = p.atkId; hurtEnemy(e, dmg, dirX || (e.x + e.w / 2 > pcx ? 0.5 : -0.5), dirY); hit = true; }
+    let blocked = null;
+    for (const e of G.enemies) if (!e.dead && e.hitId !== p.atkId && overlap(ab, e)) {
+      e.hitId = p.atkId;
+      if (knightBlocks(e, p)) { blocked = e; continue; }
+      if (e.type === 'k' && p.atkPeal) e.broken = 1.4; // a Peal knocks the shield aside
+      hurtEnemy(e, dmg, dirX || (e.x + e.w / 2 > pcx ? 0.5 : -0.5), dirY); hit = true;
+    }
+    if (blocked && !hit) {
+      Sfx.play('clang'); G.hitstop = Math.max(G.hitstop, 0.05); G.shake = Math.max(G.shake, 2); p.vx = -p.atkFace * 200;
+      burst(blocked.x + blocked.w / 2 + blocked.dir * 9, blocked.y + 14, 8, 160, '#ffe6a0', 0.25, 1.5);
+    }
     if (b && bossVulnerable(b) && b.hitId !== p.atkId && overlap(ab, b)) { b.hitId = p.atkId; hurtBoss(dmg); hit = true; }
-    for (let i = G.shots.length - 1; i >= 0; i--) { const s = G.shots[i]; if (s.k === 'orb' && overlap(ab, shotBox(s))) { burst(s.x, s.y, 8, 110, '#e9fbff', 0.3, 2); G.shots.splice(i, 1); hit = true; Sfx.play('hit'); } }
+    for (let i = G.shots.length - 1; i >= 0; i--) { const s = G.shots[i]; if ((s.k === 'orb' || s.k === 'arrow') && overlap(ab, shotBox(s))) { burst(s.x, s.y, 8, 110, '#e9fbff', 0.3, 2); G.shots.splice(i, 1); hit = true; Sfx.play('hit'); } }
     const bell = G.room.bell;
     if (bell && bell.active && bell.drop >= 1 && bell.hitId !== p.atkId && overlap(ab, { x: bell.x - 22, y: bell.y - 64, w: 44, h: 64 })) { bell.hitId = p.atkId; ringBell(); hit = true; }
     if (hit && p.atkDone !== p.atkId) {
       p.atkDone = p.atkId; G.hitstop = Math.max(G.hitstop, p.atkPeal ? 0.08 : 0.04); G.shake = Math.max(G.shake, p.atkPeal ? 6 : 2.5);
-      if (!p.atkPeal && p.res < PH.RESMAX) { p.res++; if (p.res >= PH.RESMAX) Sfx.play('charged'); }
-      if (p.atkDir === 'down') { p.vy = -400; p.jumping = false; p.canDash = true; }
+      if (!p.atkPeal && p.res < resMax()) { p.res++; if (p.res >= resMax()) Sfx.play('charged'); }
+      if (p.atkDir === 'down') { p.vy = -400; p.jumping = false; p.canDash = true; p.air2 = true; }
       else if (p.atkDir === 'side') p.vx -= p.atkFace * 70;
     }
   }
   const body = { x: p.x + 1, y: p.y + 2, w: p.w - 2, h: p.h - 3 };
   for (const e of G.enemies) if (!e.dead && e.stun <= 0 && overlap(body, { x: e.x + 2, y: e.y + 2, w: e.w - 4, h: e.h - 3 })) { hurtPlayer(e.x + e.w / 2, false, 1); break; }
+  for (const e of G.enemies) if (!e.dead && e.hit && overlap(body, e.hit)) { hurtPlayer(e.x + e.w / 2, false, e.hit.dmg); break; }
+  if (b && b.hit && overlap(body, b.hit)) hurtPlayer(b.x + b.w / 2, false, b.hit.dmg);
   const touch = b ? bossTouch(b) : 0;
   if (touch && overlap(body, { x: b.x + 6, y: b.y + 5, w: b.w - 12, h: b.h - 7 })) hurtPlayer(b.x + b.w / 2, false, touch);
-  for (const s of G.shots) { if (s.k === 'ice' && s.warn > 0) continue; if (overlap(body, shotBox(s))) { if (hurtPlayer(s.k === 'orb' ? s.x : s.x + s.w / 2, false, s.dmg || 1) && s.k === 'orb') s.life = 0; break; } }
+  for (const s of G.shots) {
+    if ((s.k === 'ice' || s.k === 'blade') && s.warn > 0) continue;
+    if (overlap(body, shotBox(s))) { const pt = s.k === 'orb' || s.k === 'arrow' || s.k === 'fire'; if (hurtPlayer(pt ? s.x : s.x + s.w / 2, false, s.dmg || 1) && (s.k === 'orb' || s.k === 'arrow')) s.life = 0; break; }
+  }
 }
 
 function updateWorld(dt) {
@@ -251,10 +296,12 @@ function toast(title, body) { G.state = 'msg'; G.msgT = 0; $('toast-title').text
 function dismissToast() { if (G.state !== 'msg') return; show('toast', false); G.state = 'play'; blurAll(); }
 function blurAll() { try { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); } catch (e) {} }
 function fmtTime(s) { const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + (r < 10 ? '0' : '') + r; }
-function showEnd() {
-  if (G.state !== 'play') { later(0.5, showEnd, true); return; }
-  const S = G.save; G.state = 'msg'; G.msgT = -99;
-  $('end-stats').textContent = 'Time ' + fmtTime(S.time) + '  ·  Falls ' + S.deaths + '  ·  Ember Shard ' + (S.got['gallery:H'] ? 'found' : 'still hidden');
+function showEnd(level) {
+  if (G.state !== 'play') { later(0.5, () => showEnd(level), true); return; }
+  const S = G.save, E = ENDS[level], shards = ['gallery:H', 'barrow:H'].filter((k) => S.got[k]).length;
+  G.state = 'msg'; G.msgT = -99;
+  $('end-stage').textContent = E.stage; $('end-title').textContent = E.title; $('end-text').textContent = E.text;
+  $('end-stats').textContent = 'Time ' + fmtTime(S.time) + '  ·  Falls ' + S.deaths + '  ·  Ember Shards ' + shards + ' of 2';
   show('end', true); setCaption(null);
 }
 function showTitle() {
@@ -263,9 +310,11 @@ function showTitle() {
   // title scene: the hero keeping a flame on the gate steps, placed right of the title text
   const room = loadRoom('gate', { x: 16 * T, y: 11 * T - 22 });
   room.braziers.push({ x: 15 * T, y: 11 * T, key: 'title', lit: true }); G.player.face = -1; G.enemies = [];
-  G.cam.x = clamp(G.player.x - View.w * (View.portrait ? 0.6 : 0.7), 0, Math.max(0, room.w * T - View.w));
+  G.cam.x = clamp(G.player.x - View.w * (View.portrait ? 0.6 : 0.86), 0, Math.max(0, room.w * T - View.w));
   for (const k of ['pause', 'toast', 'end', 'brazier']) show(k, false);
   $('btn-continue').hidden = !saved; $('btn-new').textContent = 'New journey'; $('btn-new').classList.toggle('primary', !saved); G.confirmNew = false;
+  const lv = saved && saved.brazier && ROOMS[saved.brazier.room] ? levelOf(saved.brazier.room) : 1;
+  $('title-stage').textContent = 'Level ' + lv + ' · ' + LEVELS[lv].name; $('title-tag').textContent = LEVELS[lv].tag;
   show('title', true);
   try { (saved ? $('btn-continue') : $('btn-new')).focus({ preventScroll: true }); } catch (e) {}
 }
@@ -273,7 +322,7 @@ function beginPlay() {
   show('title', false); blurAll();
   const p = (G.player = newPlayer()), b = G.save.brazier; p.maxHp = p.hp = G.save.maxHp; p.flask = maxFlask();
   G.fadeA = 1; G.fade = { dir: -1, speed: 2.2 };
-  loadRoom(b.room, { x: b.x, y: b.y }); G.state = 'play'; banner(G.room.def.name); persist();
+  loadRoom(b.room, { x: b.x, y: b.y }); G.state = 'play'; enterBanner(0); persist();
 }
 function newGame() { Store.clear(); G.save = freshSave(); beginPlay(); }
 function continueGame() { G.save = normalizeSave(Store.get()); beginPlay(); }
@@ -282,7 +331,8 @@ function pause() {
   const S = G.save, own = Object.keys(RELICS).filter((k) => S.relics[k]).map((k) => RELICS[k].name + ': ' + RELICS[k].what);
   $('relics').textContent = (own.length ? own.join(' ') : 'No relics yet. Bosses carry them.') + ' Staff +' + S.up.staff + ', flask ' + maxFlask() + ', ' + S.chimes + ' chimes.';
   const locked = !!(G.boss && bossAwake(G.boss)); $('btn-rest').disabled = locked;
-  $('btn-rest').textContent = locked ? 'No escape mid-fight' : 'Walk back to last brazier';   try { $('btn-resume').focus({ preventScroll: true }); } catch (e) {}
+  $('btn-rest').textContent = locked ? 'No escape mid-fight' : 'Walk back to last brazier';
+  try { $('btn-resume').focus({ preventScroll: true }); } catch (e) {}
 }
 function resume() { if (G.state !== 'pause') return; show('pause', false); G.state = 'play'; blurAll(); }
 // the app shell calls these: sleep/wake when it leaves or returns to the foreground, back for the system Back button
@@ -312,8 +362,12 @@ function drawMap() {
   const cv = $('map'); if (!cv || !cv.getContext) return;
   const d = Math.min(window.devicePixelRatio || 1, 2), w = cv.clientWidth || 300, h = cv.clientHeight || 120;
   cv.width = w * d; cv.height = h * d; const c = cv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, w, h);
-  const u = Math.min(w / 20.6, h / 6.6), ox = (w - 20 * u) / 2, oy = (h - 6 * u) / 2 - 2 * u, S = G.save;
-  for (const id in ROOMS) {
+  // each level has its own map
+  const S = G.save, lv = G.room.level, ids = Object.keys(ROOMS).filter((id) => levelOf(id) === lv);
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const id of ids) { const m = ROOMS[id].map; x0 = Math.min(x0, m[0]); y0 = Math.min(y0, m[1]); x1 = Math.max(x1, m[0] + m[2]); y1 = Math.max(y1, m[1] + m[3]); }
+  const u = Math.min(w / (x1 - x0 + 0.6), h / (y1 - y0 + 0.6)), ox = (w - (x1 - x0) * u) / 2 - x0 * u, oy = (h - (y1 - y0) * u) / 2 - y0 * u;
+  for (const id of ids) {
     const m = ROOMS[id].map, seen = !!S.visited[id];
     let hinted = false; for (const o in ROOMS) if (S.visited[o]) for (const e in ROOMS[o].exits) if (ROOMS[o].exits[e][0] === id) hinted = true;
     if (!seen && !hinted) continue;
@@ -324,7 +378,7 @@ function drawMap() {
     if (here) { c.fillStyle = '#ffd27a'; c.beginPath(); c.arc(x + ww / 2, y + hh / 2, 3, 0, TAU); c.fill(); }
   }
   c.setLineDash([]);
-  $('map-name').textContent = G.room.def.name;
+  $('map-name').textContent = 'Level ' + lv + ' · ' + LEVELS[lv].name + ' · ' + G.room.def.name;
 }
 
 // ---------- touch controls ----------
@@ -447,11 +501,11 @@ function start(data) {
 }
 window.__rimebell = {
   G, Input, ROOMS, PH, T, STEP, View, ARENA, Sfx, tick, loadRoom, updatePlayer, hazardHit, newPlayer, freshSave, beginPlay, newGame, showTitle,
-  layout, render, advance, spawnBoss, spawnMatriarch, hurtBoss, pause, resume, sleep, wake, back, restAt, closeBrazier, buy, PIT, setRnd(f) { rnd = f; },
+  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, buy, PIT, setRnd(f) { rnd = f; },
 };
 try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ save: G.save, playing: G.state !== 'title' && G.state !== 'boot' })); } catch (e) {}
 (function boot() {
   const hot = window.claude && window.claude.hot;
-  const go = (d) => { try { start(d || {}); } catch (e) { const el = $('fatal'); if (el) { el.hidden = false; el.textContent = 'Rimebell could not start: ' + e.message; } throw e; } };
+  const go = (d) => { try { start(d || {}); } catch (e) { const el = $('fatal'); if (el) { el.hidden = false; el.textContent = 'Souls Mind could not start: ' + e.message; } throw e; } };
   if (hot && hot.ready) hot.ready(go); else go((hot && hot.data) || {});
 })();

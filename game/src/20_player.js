@@ -1,8 +1,10 @@
 // ===== the hero =====
 const PH = {
   RUN: 140, GACC: 1900, AACC: 1400, GFRIC: 2200, AFRIC: 500, GRAV: 1500, MAXFALL: 520, JUMP: 490,
-  WSLIDE: 70, WJX: 165, WJY: 455, WLOCK: 0.12, DASHV: 440, DASHT: 0.2, DASHCD: 0.45, RESMAX: 8, DODGE: 0.17, HEALT: 0.85,
+  WSLIDE: 70, WJX: 165, WJY: 455, WLOCK: 0.12, DASHV: 440, DASHT: 0.2, DASHCD: 0.45, RESMAX: 8, DODGE: 0.17, HEALT: 0.85, JUMP2: 430,
 };
+const resMax = () => (G.save && G.save.relics.oath ? 6 : PH.RESMAX);
+const flaskHeal = () => (G.save.relics.wardlamp ? 3 : 2);
 const maxFlask = () => 2 + G.save.up.flask;
 const strikeDmg = (peal) => (peal ? 3 + G.save.up.staff * 2 : 1 + G.save.up.staff);
 function newPlayer() {
@@ -12,7 +14,7 @@ function newPlayer() {
     dashT: 0, dashCd: 0, dashDir: 1, canDash: true, dashBuf: 0,
     atkT: 0, atkCd: 0, atkBuf: 0, atkDir: 'side', atkFace: 1, atkId: 0, atkPeal: false, atkDone: -1,
     inv: 0, hurtT: 0, hp: 5, maxHp: 5, res: 0, dropT: 0, safeT: 0, safe: { x: 0, y: 0 },
-    runPhase: 0, trail: [], dead: false, hidden: false, landT: 0, wasGround: false, flask: 2, healT: 0, dodge: 0,
+    runPhase: 0, trail: [], dead: false, hidden: false, landT: 0, wasGround: false, flask: 2, healT: 0, dodge: 0, air2: true,
   };
 }
 
@@ -40,7 +42,7 @@ function updatePlayer(dt) {
     p.healT -= dt; mx = 0; p.jumpBuf = 0; p.dashBuf = 0; p.atkBuf = 0;
     if (Math.random() < 0.35) part(p.x + Math.random() * p.w, p.y + p.h, (Math.random() - 0.5) * 16, -50 - Math.random() * 40, 0.5, 2, '#ffb347');
     if (!p.onGround || stunned) p.healT = 0;
-    else if (p.healT <= 0) { p.flask--; p.hp = Math.min(p.maxHp, p.hp + 2); Sfx.play('mend'); ringFx(p.x + p.w / 2, p.y + p.h / 2, 40, '#ffb347', 0.4); }
+    else if (p.healT <= 0) { p.flask--; p.hp = Math.min(p.maxHp, p.hp + flaskHeal()); Sfx.play('mend'); ringFx(p.x + p.w / 2, p.y + p.h / 2, 40, '#ffb347', 0.4); }
   }
 
   // dash
@@ -67,7 +69,7 @@ function updatePlayer(dt) {
     const tl = wallAt(room, p, -1), tr = wallAt(room, p, 1);
     if (tl || tr) { p.wallDir = tl && tr ? (mx || p.face) : tr ? 1 : -1; p.wallCoyote = 0.12; }
     if (p.vy > 0 && p.wallLock <= 0 && ((mx < 0 && tl) || (mx > 0 && tr))) {
-      p.sliding = true; p.wallDir = mx; p.vy = Math.min(p.vy, PH.WSLIDE); p.canDash = true;
+      p.sliding = true; p.wallDir = mx; p.vy = Math.min(p.vy, PH.WSLIDE); p.canDash = true; p.air2 = true;
       if (!wasSliding) Sfx.noise && Sfx.ctx && !Sfx.muted && Sfx.noise(0.05, 0.06, 2600, 2);
       if (Math.random() < 0.25) part(p.x + (mx > 0 ? p.w : 0), p.y + 4, -mx * 20, 30, 0.35, 1.5, '#dff6fb', 200);
     }
@@ -84,8 +86,13 @@ function updatePlayer(dt) {
       }
     } else if (ab.claws && p.wallCoyote > 0 && p.dashT <= 0) {
       p.vy = -PH.WJY; p.vx = -p.wallDir * PH.WJX; p.wallLock = PH.WLOCK; p.face = -p.wallDir;
-      p.wallCoyote = 0; p.jumpBuf = 0; p.jumping = true; p.canDash = true; p.sliding = false; Sfx.play('jump');
+      p.wallCoyote = 0; p.jumpBuf = 0; p.jumping = true; p.canDash = true; p.air2 = true; p.sliding = false; Sfx.play('jump');
       for (let i = 0; i < 5; i++) part(p.x + (p.wallDir > 0 ? p.w : 0), p.y + 10 + Math.random() * 10, -p.wallDir * Math.random() * 50, (Math.random() - 0.3) * 60, 0.3, 2, '#dff6fb', 200);
+    } else if (ab.jump2 && p.air2) { // Cinder Step: a second leap off a burst of embers
+      if (p.dashT > 0) { p.dashT = 0; p.vx = p.dashDir * PH.RUN; }
+      p.vy = -PH.JUMP2; p.jumping = true; p.air2 = false; p.jumpBuf = 0; Sfx.play('step2');
+      ringFx(p.x + p.w / 2, p.y + p.h, 16, '#ffb347', 0.3);
+      for (let i = 0; i < 9; i++) part(p.x + p.w / 2 + (Math.random() - 0.5) * 10, p.y + p.h, (Math.random() - 0.5) * 110, 20 + Math.random() * 70, 0.45, 2, Math.random() < 0.5 ? '#ffb347' : '#ffe0a0', 200);
     }
   }
   if (p.jumping) { if (p.vy >= 0) p.jumping = false; else if (!I.held.jump) { p.vy *= 0.45; p.jumping = false; } }
@@ -96,7 +103,7 @@ function updatePlayer(dt) {
   moveY(p, p.vy * dt, room);
   if (p.onGround) {
     if (!p.wasGround) { p.landT = 0.12; if (p.coyote <= 0) Sfx.play('land'); }
-    p.coyote = 0.1; p.canDash = true; p.wallCoyote = 0;
+    p.coyote = 0.1; p.canDash = true; p.air2 = true; p.wallCoyote = 0;
     if (Math.abs(p.vx) > 20) p.runPhase += dt * 18;
     // remember the last firm footing, for hazard recovery
     p.safeT -= dt;
@@ -115,7 +122,7 @@ function updatePlayer(dt) {
     p.atkBuf = 0; p.atkCd = 0.36; p.atkT = 0.13; p.atkId++;
     p.atkDir = I.held.up ? 'up' : I.held.down && !p.onGround ? 'down' : 'side';
     p.atkFace = p.sliding ? -p.wallDir : p.face;
-    p.atkPeal = p.res >= PH.RESMAX;
+    p.atkPeal = p.res >= resMax();
     if (p.atkPeal) {
       p.res = 0; if (G.save.relics.clapper && p.hp < p.maxHp) p.hp++;
       ringFx(p.x + p.w / 2, p.y + p.h / 2, 70, '#ffd27a', 0.45); G.shake = Math.max(G.shake, 3);

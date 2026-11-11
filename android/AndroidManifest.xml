@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.moblized.soulsmind"
-    android:versionCode="1"
-    android:versionName="0.2.0">
+    package="com.moblized.soulsmind">
+    <!-- versionCode and versionName are inserted by android/build.sh (VERSION_CODE / VERSION_NAME). -->
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
 
@@ -15,7 +14,7 @@
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
 
     <application
-        android:label="Rimebell"
+        android:label="Souls Mind"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/Rimebell"
         android:isGame="true"

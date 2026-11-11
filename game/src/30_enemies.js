@@ -15,6 +15,7 @@ function updateEnemies(dt) {
     if (e.dead) { G.enemies.splice(i, 1); continue; }
     e.t += dt; e.flash = Math.max(0, e.flash - dt);
     const ecx = e.x + e.w / 2, ecy = e.y + e.h / 2, dx = pcx - ecx, dy = pcy - ecy, d = Math.hypot(dx, dy) || 1;
+    if (FOES[e.type].dusk) { updateDuskFoe(e, dt, dx, dy, d); continue; }
     if (e.type === 'r') {
       // patrols, and hurries toward the hero when they share a ledge
       const sees = Math.abs(dy) < 22 && Math.abs(dx) < 120 && Math.sign(dx) === e.dir;
@@ -62,13 +63,14 @@ function updateEnemies(dt) {
 
 function hurtEnemy(e, dmg, dirX, dirY) {
   e.hp -= dmg; e.flash = 0.12; e.stun = 0.22;
-  if (e.type === 'r') { e.vx = dirX * 140; e.vy = dirY < 0 ? -200 : -110; }
+  if (e.type === 'r' || FOES[e.type].dusk) { const kb = e.type === 'k' ? 70 : 140; e.vx = dirX * kb; e.vy = dirY < 0 ? -200 : -100; e.mode = e.type === 'k' ? 'walk' : e.mode; }
   else { e.vx = dirX * 190; e.vy = dirY * 190; e.cast = 0; }
   const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
   burst(cx, cy, 6, 130, '#e9fbff', 0.3, 2);
   if (e.hp <= 0) {
     e.dead = true; Sfx.play('kill'); dropChimes(cx, cy, FOES[e.type].chimes);
-    burst(cx, cy, 16, 150, e.type === 'r' ? '#dfeef5' : '#a9dff0', 0.6, 2.5, 150); ringFx(cx, cy, 26, '#cfefff', 0.3);
+    const col = FOES[e.type].dusk ? '#d8c9a8' : e.type === 'r' ? '#dfeef5' : '#a9dff0';
+    burst(cx, cy, 16, 150, col, 0.6, 2.5, 150); ringFx(cx, cy, 26, FOES[e.type].dusk ? '#ffcf7a' : '#cfefff', 0.3);
   } else Sfx.play('hit');
 }
 
@@ -110,11 +112,16 @@ function updateShots(dt) {
     } else if (s.k === 'ice') {
       if (s.warn > 0) { s.warn -= dt; if (s.warn <= 0) s.vy = 120; }
       else { s.vy = Math.min(s.vy + 1500 * dt, 600); s.y += s.vy * dt; if (s.y + s.h >= s.floor) { dead = true; burst(s.x + s.w / 2, s.floor - 2, 8, 120, '#cfefff', 0.4, 2, 400); Sfx.play('shatter'); } }
-    }
+    } else dead = updateDuskShot(s, dt, room);
     if (dead) G.shots.splice(i, 1);
   }
 }
-function shotBox(s) { return s.k === 'orb' ? { x: s.x - s.r, y: s.y - s.r, w: s.r * 2, h: s.r * 2 } : s; }
+function shotBox(s) {
+  if (s.k === 'orb') return { x: s.x - s.r, y: s.y - s.r, w: s.r * 2, h: s.r * 2 };
+  if (s.k === 'arrow') return { x: s.x - 4, y: s.y - 3, w: 8, h: 6 };
+  if (s.k === 'fire') return s.burn > 0 ? { x: s.x - 13, y: s.floor - 12, w: 26, h: 12 } : { x: s.x - 5, y: s.y - 5, w: 10, h: 10 };
+  return s;
+}
 function wave(x, floor, dir, speed, lo, hi) { G.shots.push({ k: 'wave', x: x - 8 + dir * 14, y: floor - 20, w: 16, h: 20, dir, speed, life: 3, lo, hi, dmg: 1 }); }
 
 // ---------- bosses ----------
@@ -126,7 +133,9 @@ function bossVulnerable(b) { return b && b.state !== 'intro' && b.state !== 'enr
 function bossTouch(b) {
   if (b.state === 'intro' || b.state === 'dying' || b.state === 'sleep' || b.state === 'wake') return 0;
   if (b.kind === 'abbot') return b.state === 'slamFall' || b.state === 'sweepGo' ? 2 : 1;
-  return b.state === 'charge' || b.state === 'leap' ? 2 : 1;
+  if (b.kind === 'matriarch') return b.state === 'charge' || b.state === 'leap' ? 2 : 1;
+  if (b.kind === 'varhelm') return b.state === 'lunge' || b.state === 'fall' ? 2 : 1;
+  return 1;
 }
 function hurtBoss(dmg) {
   const b = G.boss; b.hp -= dmg; b.flash = 0.1;
@@ -137,19 +146,22 @@ function hurtBoss(dmg) {
   Sfx.play('hit');
   if (b.phase === 1 && b.hp <= b.maxHp / 2) {
     b.phase = 2; G.shots.length = 0; Sfx.play('roar'); ringFx(cx, cy, 120, '#bff4ff', 0.6);
-    bossGo(b, b.kind === 'abbot' ? 'enrage' : 'wake');
+    bossGo(b, b.kind === 'matriarch' ? 'wake' : 'enrage');
   }
 }
 function updateBoss(dt) {
   const b = G.boss; if (!b) return;
   b.st += dt; b.flash = Math.max(0, b.flash - dt);
-  if (b.kind === 'abbot') updateAbbot(b, dt); else updateMatriarch(b, dt);
+  if (b.kind === 'abbot') updateAbbot(b, dt);
+  else if (b.kind === 'matriarch') updateMatriarch(b, dt);
+  else if (b.kind === 'warden') updateWarden(b, dt);
+  else updateVarhelm(b, dt);
 }
 
 // The Silent Abbot: floats, slams, throws frost, sweeps the hall, and in his second voice brings the ceiling down.
 function spawnBoss() {
   const cx = (ARENA.x0 + ARENA.x1) / 2;
-  G.boss = { kind: 'abbot', name: 'The Silent Abbot', x: cx - 22, y: ARENA.ceil - 90, w: 44, h: 64, vx: 0, vy: 0, hp: 34, maxHp: 34, state: 'intro', st: 0, phase: 1, flash: 0, last: '', dir: -1, face: -1, sweeps: 0, n: 0, hitId: -1 };
+  G.boss = { kind: 'abbot', name: 'The Silent Abbot', A: ARENA, x: cx - 22, y: ARENA.ceil - 90, w: 44, h: 64, vx: 0, vy: 0, hp: 34, maxHp: 34, state: 'intro', st: 0, phase: 1, flash: 0, last: '', dir: -1, face: -1, sweeps: 0, n: 0, hitId: -1 };
   Sfx.mood = 'boss'; Sfx.play('roar');
 }
 function bossSteer(b, tx, ty, maxV, dt) {
@@ -260,7 +272,7 @@ function updateAbbot(b, dt) {
 
 // The Rime Matriarch: sleeps in the cellar pit on top of the Ice Claws. Stalks, rears, charges wall to wall, and leaps.
 function spawnMatriarch() {
-  G.boss = { kind: 'matriarch', name: 'The Rime Matriarch', x: PIT.x1 - 78, y: PIT.floor - 30, w: 46, h: 30, vx: 0, vy: 0, hp: 18, maxHp: 18, state: 'sleep', st: 0, phase: 1, flash: 0, dir: -1, face: -1, sweeps: 0, n: 0, hitId: -1, dur: 1 };
+  G.boss = { kind: 'matriarch', name: 'The Rime Matriarch', A: PIT, x: PIT.x1 - 78, y: PIT.floor - 30, w: 46, h: 30, vx: 0, vy: 0, hp: 18, maxHp: 18, state: 'sleep', st: 0, phase: 1, flash: 0, dir: -1, face: -1, sweeps: 0, n: 0, hitId: -1, dur: 1 };
 }
 function updateMatriarch(b, dt) {
   const p = G.player, pcx = p.x + p.w / 2, bcx = b.x + b.w / 2, fast = b.phase === 2, P = PIT;
