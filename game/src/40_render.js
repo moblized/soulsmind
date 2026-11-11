@@ -187,7 +187,7 @@ function drawProps(c) {
   }
   for (const k of room.pickups) {
     const y = k.y + Math.sin(t * 2.4 + k.x) * 3;
-    glow(c, k.x, y, 46, k.kind === 'H' ? 'rgba(255,160,60,0.35)' : 'rgba(140,220,240,0.32)');
+    glow(c, k.x, y, 46, k.kind === 'H' || k.kind === 'E' ? 'rgba(255,160,60,0.32)' : 'rgba(140,220,240,0.32)');
     c.save(); c.translate(k.x, y);
     if (k.kind === '1') { // three iron claws
       c.strokeStyle = '#1b2233'; c.lineWidth = 3; c.lineCap = 'round';
@@ -197,6 +197,11 @@ function drawProps(c) {
       c.strokeStyle = '#3fb8b0'; c.lineWidth = 4; c.lineCap = 'round'; c.beginPath(); c.moveTo(-10, 2);
       c.bezierCurveTo(-4, -8 + Math.sin(t * 6) * 3, 3, 8 + Math.sin(t * 6 + 1) * 3, 11, -3 + Math.sin(t * 6 + 2) * 3); c.stroke();
       c.strokeStyle = '#e6fbf8'; c.lineWidth = 1; c.stroke();
+    } else if (k.kind === 'E') { // equipment lying in the world: weapons and armour on a cloth, relics as small charms
+      const it = ITEMS[k.item];
+      if (it.slot === 'weapon') { c.rotate(-0.6 + Math.sin(t * 1.4) * 0.1); drawCarried(c, k.item, false, 1.2); }
+      else if (it.slot === 'armor') { c.fillStyle = k.item === 'mail' ? '#8a7a5c' : k.item === 'shroud' ? '#5c5562' : '#c4621a'; c.beginPath(); c.moveTo(-6, -8); c.lineTo(6, -8); c.lineTo(9, 8); c.lineTo(-9, 8); c.closePath(); c.fill(); c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(-6, -8, 12, 2); }
+      else { c.fillStyle = k.item === 'purse' ? '#c99f3f' : '#9fd4e2'; c.beginPath(); c.arc(0, 0, 5, 0, TAU); c.fill(); c.strokeStyle = '#e2b64f'; c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, 8, 0, TAU); c.stroke(); }
     } else if (k.kind === 'K') { // a boss relic: a pale shard ringed in gold
       c.rotate(Math.sin(t * 1.5) * 0.2); c.strokeStyle = '#e2b64f'; c.lineWidth = 1.6; c.beginPath(); c.arc(0, 0, 10, 0, TAU); c.stroke();
       c.fillStyle = '#eafcff'; c.beginPath(); c.moveTo(0, -8); c.lineTo(4, 0); c.lineTo(0, 8); c.lineTo(-4, 0); c.closePath(); c.fill();
@@ -227,8 +232,31 @@ function drawProps(c) {
   }
 }
 
-function drawSlash(c, x, y, ang, r, k, peal) {
-  c.save(); c.translate(x, y); c.rotate(ang); c.globalAlpha = clamp(k, 0, 1) * 0.92;
+// the weapon slung on the hero's back (or lying on the ground, scaled)
+function drawCarried(c, id, glowBell, scale) {
+  c.save(); if (scale) c.scale(scale, scale); c.lineCap = 'round';
+  if (id === 'sickle') {
+    c.strokeStyle = '#4a352b'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-4, -5); c.lineTo(-7, -18); c.stroke();
+    c.strokeStyle = '#cfefff'; c.lineWidth = 2; c.beginPath(); c.arc(-11, -18, 5, -0.4, Math.PI * 0.75, true); c.stroke();
+  } else if (id === 'censer') {
+    c.strokeStyle = '#4a352b'; c.lineWidth = 2; c.beginPath(); c.moveTo(-4, -5); c.lineTo(-6, -15); c.stroke();
+    c.strokeStyle = '#8a8277'; c.lineWidth = 1; c.setLineDash([1.5, 1.5]); c.beginPath(); c.moveTo(-6, -15); c.lineTo(-9, -21); c.stroke(); c.setLineDash([]);
+    c.fillStyle = '#b8913a'; c.beginPath(); c.arc(-9.5, -24, 3.8, 0, TAU); c.fill(); c.fillStyle = glowBell ? '#fff0b0' : '#ffab3d'; c.fillRect(-10.5, -24.5, 2, 1.5);
+  } else if (id === 'spear') {
+    c.strokeStyle = '#4a3826'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(-2, -1); c.lineTo(-11, -32); c.stroke();
+    c.fillStyle = '#d8d0c0'; c.beginPath(); c.moveTo(-13, -31); c.lineTo(-9.5, -32.5); c.lineTo(-12.5, -38); c.closePath(); c.fill();
+  } else if (id === 'greatsword') {
+    c.strokeStyle = '#efe2bf'; c.lineWidth = 3.2; c.beginPath(); c.moveTo(-3, -6); c.lineTo(-10, -34); c.stroke();
+    c.strokeStyle = '#c9a45a'; c.lineWidth = 1.8; c.beginPath(); c.moveTo(-6.5, -9); c.lineTo(-1, -10.5); c.stroke();
+    c.strokeStyle = '#3a2a16'; c.lineWidth = 2.2; c.beginPath(); c.moveTo(-3, -6); c.lineTo(-2, -2); c.stroke();
+  } else {
+    c.strokeStyle = '#4a352b'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-4, -4); c.lineTo(-8, -24); c.stroke();
+    c.fillStyle = glowBell ? '#fff0b0' : '#e2b64f'; c.beginPath(); c.arc(-8.4, -25.5, 2.3, 0, TAU); c.fill();
+  }
+  c.restore();
+}
+function drawSlash(c, x, y, ang, r, k, peal, thin) {
+  c.save(); c.translate(x, y); c.rotate(ang); c.globalAlpha = clamp(k, 0, 1) * 0.92; if (thin) c.scale(1, 0.55);
   c.fillStyle = peal ? '#ffe6a0' : '#eafcff';
   c.beginPath(); c.arc(0, 0, r, -1.15, 1.15); c.arc(-r * 0.38, 0, r * 0.98, 0.93, -0.93, true); c.closePath(); c.fill();
   c.restore();
@@ -248,7 +276,7 @@ function drawPlayer(c) {
   c.strokeStyle = '#2a1c16'; c.lineWidth = 2.4; c.lineCap = 'round';
   c.beginPath(); c.moveTo(-2.5, -6); c.lineTo(-2.5 + sw, air ? -2.5 : 0); c.moveTo(2.5, -6); c.lineTo(2.5 - sw, air ? -1 : 0); c.stroke();
   // staff on the back, with its small bell
-  if (p.atkT <= 0) { c.strokeStyle = '#4a352b'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(-4, -4); c.lineTo(-8, -24); c.stroke(); c.fillStyle = p.res >= resMax() ? '#fff0b0' : '#e2b64f'; c.beginPath(); c.arc(-8.4, -25.5, 2.3, 0, TAU); c.fill(); }
+  if (p.atkT <= 0) drawCarried(c, G.save ? G.save.equip.weapon : 'staff', p.res >= resMax());
   // bell-shaped coat
   c.fillStyle = '#f29a2e'; c.beginPath(); c.moveTo(-4, -15); c.quadraticCurveTo(-8.5, -9, -8.5, -4.5); c.lineTo(8.5, -4.5); c.quadraticCurveTo(8.5, -9, 4, -15); c.closePath(); c.fill();
   c.fillStyle = '#d97a1e'; c.beginPath(); c.moveTo(-4, -15); c.quadraticCurveTo(-8.5, -9, -8.5, -4.5); c.lineTo(-4.5, -4.5); c.quadraticCurveTo(-4, -10, -1, -15); c.closePath(); c.fill();
@@ -260,10 +288,10 @@ function drawPlayer(c) {
   c.fillStyle = '#2a1c16'; c.fillRect(1.3, -18.2, 1.2, 2); c.fillRect(3.7, -18.2, 1.2, 2);
   c.restore(); c.globalAlpha = 1;
   if (p.atkT > 0) {
-    const k = p.atkT / 0.13, r = p.atkPeal ? 40 : 27, cy = p.y + p.h / 2;
-    if (p.atkDir === 'up') drawSlash(c, cx, p.y - 2, -Math.PI / 2, r, k, p.atkPeal);
-    else if (p.atkDir === 'down') drawSlash(c, cx, fy, Math.PI / 2, r, k, p.atkPeal);
-    else drawSlash(c, cx + p.atkFace * 6, cy - 2, p.atkFace > 0 ? 0 : Math.PI, r, k, p.atkPeal);
+    const W = weapon(), k = p.atkT / (W.heavy ? 0.16 : 0.13), r = (p.atkPeal ? 40 : 27) * W.reach * (eq('spine') ? 1.3 : 1), cy = p.y + p.h / 2, warm = p.atkPeal || W.heavy;
+    if (p.atkDir === 'up') drawSlash(c, cx, p.y - 2, -Math.PI / 2, r, k, warm);
+    else if (p.atkDir === 'down') drawSlash(c, cx, fy, Math.PI / 2, r, k, warm);
+    else drawSlash(c, cx + p.atkFace * 6, cy - 2, p.atkFace > 0 ? 0 : Math.PI, r, k, warm, W.long);
   }
   if (p.res >= resMax()) glow(c, cx, p.y + 4, 26 + Math.sin(t * 8) * 4, 'rgba(255,225,130,0.35)');
   if (p.healT > 0) glow(c, cx, p.y + 10, 30 + (1 - p.healT / PH.HEALT) * 26, 'rgba(255,170,70,0.4)');

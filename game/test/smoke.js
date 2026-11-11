@@ -85,8 +85,8 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
       if (G.boss) { G.boss.hp = 1; run(60, { until: () => !G.boss }); }
       const kinds = G.room.pickups.map((k) => k.kind).sort().join('');
       ok('her death drops chimes, a relic and frees the claws', G.save.mini && !G.boss, 'pickups ' + kinds + ' drops ' + G.drops.length + ' chimes ' + G.save.chimes);
-      run(40, { until: () => G.save.relics.spine && G.save.abilities.claws });
-      ok('relic and claws collected', G.save.relics.spine && G.save.abilities.claws, 'chimes ' + G.save.chimes);
+      run(40, { until: () => G.save.own.spine && G.save.abilities.claws });
+      ok('relic and claws collected', G.save.own.spine && G.save.abilities.claws, 'chimes ' + G.save.chimes);
       G.god = false;
 
       // 6. the Silent Abbot: loot and ending
@@ -99,7 +99,7 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
       ok('abbot falls, gate opens, relic appears', G.save.boss && !G.room.gateClosed && G.room.pickups.some((k) => k.kind === 'K'), 'phase reached ' + ph);
       { const k = G.room.pickups.find((q) => q.kind === 'K'); G.enemies = []; step(90, {}); G.player.x = k.x - 6; G.player.y = k.y - 8; step(20, {}); const title = document.getElementById('toast-title').textContent + ' / ' + document.getElementById('toast-body').textContent; document.getElementById('btn-ok').click(); log.push('     relic toast: ' + title);
         const bell = G.room.bell; G.player.x = bell.x - 30; G.player.y = bell.y - 22; G.player.face = 1; step(100, {}); step(3, { attack: true }); step(200, {}); if (document.getElementById('end').classList.contains('on')) { document.getElementById('btn-keep').click(); log.push('     end screen shown and dismissed'); } }
-      ok('clapper collected, bell rung, chimes paid out', G.save.relics.clapper && G.save.done && G.save.chimes >= c0, 'chimes ' + G.save.chimes);
+      ok('clapper collected, bell rung, chimes paid out', G.save.own.clapper && G.save.done && G.save.chimes >= c0, 'chimes ' + G.save.chimes);
       run(6); G.god = false;
       R.loadRoom('sanctum', { x: 10 * T, y: 14 * T - 22 }); G.state = 'play'; G.fadeA = 0; G.fade = null; step(30, {}); // the open west door may have taken the bot away
       G.player.res = 8; G.player.hp = 2; G.enemies = []; step(3, { attack: true }); ok('with the clapper a Peal mends', G.player.hp === 3, G.player.hp);
@@ -114,7 +114,7 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
       ok('back resumes', R.back() === true && G.state === 'play'); R.sleep(); ok('sleep pauses and saves', G.state === 'pause'); R.wake(); R.resume();
       R.showTitle(); ok('back on title is not handled', R.back() === false);
       document.getElementById('btn-continue').click(); step(60, {});
-      ok('continue restores progress', G.state === 'play' && G.save.relics.clapper && G.save.relics.spine && R.charLevel(G.save) === 1, rel);
+      ok('continue restores progress', G.state === 'play' && G.save.own.clapper && G.save.own.spine && R.charLevel(G.save) === 1, rel);
       // an older save with the fixed upgrades gets those chimes back
       const old = JSON.parse(localStorage.getItem('rimebell.save.v1')); old.v = 3; old.up = { staff: 1, flask: 1, lantern: 1 }; old.maxHp = 6; old.chimes = 10; delete old.stats; localStorage.setItem('rimebell.save.v1', JSON.stringify(old));
       R.showTitle(); document.getElementById('btn-continue').click(); step(10, {});

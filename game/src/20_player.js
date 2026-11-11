@@ -1,12 +1,13 @@
 // ===== the hero =====
 const PH = {
   RUN: 140, GACC: 1900, AACC: 1400, GFRIC: 2200, AFRIC: 500, GRAV: 1500, MAXFALL: 520, JUMP: 490,
-  WSLIDE: 70, WJX: 165, WJY: 455, WLOCK: 0.12, DASHV: 440, DASHT: 0.2, DASHCD: 0.45, RESMAX: 8, DODGE: 0.17, HEALT: 0.85, JUMP2: 430,
+  WSLIDE: 70, WJX: 165, WJY: 455, WLOCK: 0.12, WCX: 80, WCLOCK: 0.05, DASHV: 440, DASHT: 0.2, DASHCD: 0.45, RESMAX: 8, DODGE: 0.17, HEALT: 0.85, JUMP2: 430,
 };
 const resMax = () => (G.save ? pealStrikes(G.save.stats.res, G.save) : PH.RESMAX);
-const flaskHeal = () => (G.save.relics.wardlamp ? 3 : 2);
+const flaskHeal = () => (eq('wardlamp') ? 3 : 2);
 const maxFlask = () => 2 + G.save.stats.spi;
-const strikeDmg = (peal) => { const st = G.save.stats; return (peal ? 3 * (1 + 0.25 * st.res) : 1) * (1 + 0.15 * st.mig); };
+const strikeDmg = (peal) => { const st = G.save.stats; return (peal ? 3 * (1 + 0.25 * st.res) : 1) * (1 + 0.15 * st.mig) * weapon().dmg; };
+const moveMul = () => armor().speed || 1;
 function newPlayer() {
   return {
     x: 0, y: 0, w: 12, h: 22, vx: 0, vy: 0, face: 1, onGround: false, onOneWay: false, hitWall: 0, hitCeil: false, dropThrough: false,
@@ -14,7 +15,7 @@ function newPlayer() {
     dashT: 0, dashCd: 0, dashDir: 1, canDash: true, dashBuf: 0,
     atkT: 0, atkCd: 0, atkBuf: 0, atkDir: 'side', atkFace: 1, atkId: 0, atkPeal: false, atkDone: -1,
     inv: 0, hurtT: 0, hp: 5, maxHp: 5, res: 0, dropT: 0, safeT: 0, safe: { x: 0, y: 0 },
-    runPhase: 0, trail: [], dead: false, hidden: false, landT: 0, wasGround: false, flask: 2, healT: 0, dodge: 0, air2: true,
+    runPhase: 0, trail: [], dead: false, hidden: false, landT: 0, wasGround: false, flask: 2, healT: 0, dodge: 0, air2: true, wjT: 0,
   };
 }
 
@@ -48,31 +49,41 @@ function updatePlayer(dt) {
   // dash
   if (p.dashBuf > 0 && ab.dash && p.dashCd <= 0 && p.canDash && !stunned && p.dashT <= 0) {
     p.dashDir = p.sliding ? -p.wallDir : (mx || p.face); p.face = p.dashDir;
-    p.dashT = PH.DASHT; p.dashCd = PH.DASHCD; p.dashBuf = 0; p.wallLock = 0; p.sliding = false; p.jumping = false; p.dodge = PH.DODGE;
+    p.dashT = PH.DASHT; p.dashCd = PH.DASHCD; p.dashBuf = 0; p.wallLock = 0; p.sliding = false; p.jumping = false; p.dodge = PH.DODGE * (armor().dodge || 1);
     if (!p.onGround) p.canDash = false;
     Sfx.play('dash');
     for (let i = 0; i < 6; i++) part(p.x + p.w / 2, p.y + 4 + Math.random() * 16, -p.dashDir * (40 + Math.random() * 80), (Math.random() - 0.5) * 30, 0.3, 2, '#bfeaf2');
   }
   if (p.dashT > 0) {
-    p.dashT -= dt; p.vx = p.dashDir * PH.DASHV; p.vy = 0;
-    if (p.dashT <= 0) p.vx = p.dashDir * PH.RUN;
+    p.dashT -= dt; p.vx = p.dashDir * PH.DASHV * moveMul(); p.vy = 0;
+    if (p.dashT <= 0) p.vx = p.dashDir * PH.RUN * moveMul();
   } else {
     if (p.wallLock > 0) p.wallLock -= dt;
-    else if (mx) { p.vx = approach(p.vx, mx * PH.RUN, (p.onGround ? PH.GACC : PH.AACC) * dt); p.face = mx; }
+    else if (mx) { p.vx = approach(p.vx, mx * PH.RUN * moveMul(), (p.onGround ? PH.GACC : PH.AACC) * dt); p.face = mx; }
     else p.vx = approach(p.vx, 0, (p.onGround ? PH.GFRIC : PH.AFRIC) * dt);
     p.vy = Math.min(p.vy + PH.GRAV * dt, PH.MAXFALL);
   }
 
   // walls (needs the Ice Claws)
-  const wasSliding = p.sliding; p.sliding = false;
+  const wasSliding = p.sliding; p.sliding = false; p.wjT = Math.max(0, p.wjT - dt);
+  let touching = false;
   if (ab.claws && !p.onGround && p.dashT <= 0) {
-    const tl = wallAt(room, p, -1), tr = wallAt(room, p, 1);
+    const tl = wallAt(room, p, -1), tr = wallAt(room, p, 1); touching = tl || tr;
     if (tl || tr) { p.wallDir = tl && tr ? (mx || p.face) : tr ? 1 : -1; p.wallCoyote = 0.12; }
     if (p.vy > 0 && p.wallLock <= 0 && ((mx < 0 && tl) || (mx > 0 && tr))) {
       p.sliding = true; p.wallDir = mx; p.vy = Math.min(p.vy, PH.WSLIDE); p.canDash = true; p.air2 = true;
+      if (!G.climbHint) { G.climbHint = true; note(Input.fill('Hold {J} to climb')); }
       if (!wasSliding) Sfx.noise && Sfx.ctx && !Sfx.muted && Sfx.noise(0.05, 0.06, 2600, 2);
       if (Math.random() < 0.25) part(p.x + (mx > 0 ? p.w : 0), p.y + 4, -mx * 20, 30, 0.35, 1.5, '#dff6fb', 200);
     }
+  }
+
+  // mid-climb, a doorway or the top of the wall on the side you press toward: step straight into it
+  if (ab.claws && !p.onGround && !touching && mx !== 0 && mx === p.wallDir && p.wjT > 0 && p.dashT <= 0) { p.vx = mx * PH.RUN; p.wallLock = 0; }
+  // holding JUMP while pressing into a wall keeps climbing it (and starts the climb from the ground)
+  if (ab.claws && I.held.jump && mx !== 0 && p.wjT <= 0 && !stunned && p.dashT <= 0) {
+    if (touching && mx === p.wallDir) p.jumpBuf = Math.max(p.jumpBuf, 0.02);
+    else if (p.onGround && p.landT <= 0 && wallAt(room, p, mx)) { p.jumpBuf = Math.max(p.jumpBuf, 0.02); p.wjT = 0.16; }
   }
 
   // jump
@@ -85,8 +96,10 @@ function updatePlayer(dt) {
         for (let i = 0; i < 4; i++) part(p.x + p.w / 2, p.y + p.h, (Math.random() - 0.5) * 60, -Math.random() * 20, 0.3, 2, '#e6f1f6');
       }
     } else if (ab.claws && p.wallCoyote > 0 && p.dashT <= 0) {
-      p.vy = -PH.WJY; p.vx = -p.wallDir * PH.WJX; p.wallLock = PH.WLOCK; p.face = -p.wallDir;
-      p.wallCoyote = 0; p.jumpBuf = 0; p.jumping = true; p.canDash = true; p.air2 = true; p.sliding = false; Sfx.play('jump');
+      // pressing into the wall: a short hop up it (a climb); otherwise a full leap away from it
+      const into = mx !== 0 && mx === p.wallDir;
+      p.vy = -PH.WJY; p.vx = -p.wallDir * (into ? PH.WCX : PH.WJX); p.wallLock = into ? PH.WCLOCK : PH.WLOCK; p.face = into ? p.wallDir : -p.wallDir;
+      p.wallCoyote = 0; p.jumpBuf = 0; p.jumping = true; p.canDash = true; p.air2 = true; p.sliding = false; p.wjT = 0.16; Sfx.play('jump');
       for (let i = 0; i < 5; i++) part(p.x + (p.wallDir > 0 ? p.w : 0), p.y + 10 + Math.random() * 10, -p.wallDir * Math.random() * 50, (Math.random() - 0.3) * 60, 0.3, 2, '#dff6fb', 200);
     } else if (ab.jump2 && p.air2) { // Cinder Step: a second leap off a burst of embers
       if (p.dashT > 0) { p.dashT = 0; p.vx = p.dashDir * PH.RUN; }
@@ -119,16 +132,16 @@ function updatePlayer(dt) {
 
   // strike
   if (p.atkBuf > 0 && p.atkCd <= 0 && !stunned) {
-    p.atkBuf = 0; p.atkCd = 0.36; p.atkT = 0.13; p.atkId++;
+    p.atkBuf = 0; p.atkCd = weapon().cd; p.atkT = weapon().heavy ? 0.16 : 0.13; p.atkId++;
     p.atkDir = I.held.up ? 'up' : I.held.down && !p.onGround ? 'down' : 'side';
     p.atkFace = p.sliding ? -p.wallDir : p.face;
     p.atkPeal = p.res >= resMax();
     if (p.atkPeal) {
-      p.res = 0; if (G.save.relics.clapper && p.hp < p.maxHp) p.hp++;
+      p.res = 0; if (eq('clapper') && p.hp < p.maxHp) p.hp++;
       ringFx(p.x + p.w / 2, p.y + p.h / 2, 70, '#ffd27a', 0.45); G.shake = Math.max(G.shake, 3);
       burst(p.x + p.w / 2, p.y + p.h / 2, 14, 120, '#ffd27a', 0.5, 2);
     }
-    Sfx.play(p.atkPeal ? 'peal' : 'swing');
+    Sfx.play(p.atkPeal ? 'peal' : weapon().heavy ? 'heavy' : 'swing');
   }
 
   // scarf trail
@@ -144,10 +157,11 @@ function updatePlayer(dt) {
 }
 
 function attackBox(p) {
-  const cx = p.x + p.w / 2, cy = p.y + p.h / 2, k = (p.atkPeal ? 1.5 : 1) * (G.save.relics.spine ? 1.3 : 1);
-  if (p.atkDir === 'up') return { x: cx - 17 * k, y: p.y - 30 * k, w: 34 * k, h: 34 * k };
-  if (p.atkDir === 'down') return { x: cx - 17 * k, y: p.y + p.h - 4, w: 34 * k, h: 32 * k };
-  const w = 38 * k, h = 30 * k;
+  const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+  const W = weapon(), base = (p.atkPeal ? 1.5 : 1) * (eq('spine') ? 1.3 : 1), k = base * W.reach, kh = W.long ? base : k; // a spear reaches far, not wide
+  if (p.atkDir === 'up') return { x: cx - 17 * kh, y: p.y - 30 * k, w: 34 * kh, h: 34 * k };
+  if (p.atkDir === 'down') return { x: cx - 17 * kh, y: p.y + p.h - 4, w: 34 * kh, h: 32 * k };
+  const w = 38 * k, h = 30 * kh;
   return { x: p.atkFace > 0 ? cx - 2 : cx - w + 2, y: cy - h / 2 - 2, w, h };
 }
 
@@ -155,6 +169,7 @@ function hurtPlayer(fromX, hazard, dmg) {
   const p = G.player;
   if (p.inv > 0 || p.dead || G.state !== 'play' || G.god) return false;
   if (!hazard && p.dodge > 0) return false; // the first instant of a dash slips through blows
+  if ((dmg || 1) > 1 && armor().speed && armor().speed < 1) dmg = 1; // Oathbound Mail turns heavy blows
   p.hp -= dmg || 1; p.inv = 1.0; p.hurtT = 0.28; p.dashT = 0; p.jumping = false; p.atkT = 0; p.healT = 0;
   p.vx = (p.x + p.w / 2 < fromX ? -1 : 1) * 190; p.vy = -250;
   G.shake = Math.max(G.shake, (dmg || 1) > 1 ? 11 : 7); G.hitstop = (dmg || 1) > 1 ? 0.14 : 0.09; Sfx.play('hurt'); buzz((dmg || 1) > 1 ? 110 : 55);

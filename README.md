@@ -17,6 +17,11 @@ Every push to `main` builds a fresh APK. On your phone, open the latest release 
 - **Resting is a choice.** Push up at a lit brazier to rest. Resting heals you, refills the flask, opens the upgrade menu, and brings every enemy you killed back to life.
 - **Bosses drop loot.** Each boss drops a heap of chimes and a relic with a lasting effect.
 - **Level up at braziers.** Rest, then spend chimes on levels. Each level raises one stat and costs more than the last: **Vitality** (health), **Might** (strike damage), **Spirit** (flask drinks) or **Resonance** (a stronger Peal that charges faster). Points can be shuffled before you confirm.
+- **Change weapon and gear at braziers.** The Equipment tab holds one weapon, one armour and three relics.
+  - Weapons: Bell-staff (start), Rime Sickle (fast), Abbot's Censer (heavy, breaks shields), Oathbound Spear (long reach), Dusk Greatsword (heaviest).
+  - Armour: Pilgrim's Coat (start), Oathbound Mail (heavy blows take one ember; slower), Ashen Shroud (faster, longer dodge).
+  - Relics: the four boss relics, plus the Chime Purse and Rimewalker Wraps hidden in Rimebell.
+- **Climbing.** With the Ice Claws, press into a wall and hold JUMP to climb it. Let go of the stick and press JUMP to leap away.
 - **Updates itself.** The Android app checks this repository's releases on launch and offers new versions; the pause menu shows the version and can check by hand.
 - **Heavy hits take two embers.** A dash briefly passes through attacks.
 - **Shields:** strike a knight from behind or from above, punish his thrust, or break his guard with a Peal.

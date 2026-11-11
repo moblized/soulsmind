@@ -18,7 +18,7 @@ function lineOfSight(x0, y0, x1, y1) {
 }
 // a knight's shield stops strikes from the front, unless it is a Peal or a strike from above
 function knightBlocks(e, p) {
-  return e.type === 'k' && e.guard && !p.atkPeal && p.atkDir !== 'down' && Math.sign(p.x + p.w / 2 - (e.x + e.w / 2)) === e.dir;
+  return e.type === 'k' && e.guard && !p.atkPeal && !weapon().heavy && p.atkDir !== 'down' && Math.sign(p.x + p.w / 2 - (e.x + e.w / 2)) === e.dir;
 }
 
 function updateDuskFoe(e, dt, dx, dy, d) {

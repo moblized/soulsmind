@@ -16,7 +16,7 @@ const ARENA = { x0: T, x1: 24 * T, floor: 14 * T, ceil: 2 * T, trigger: 22.5 * T
 
 const ROOMS = {
   gate: {
-    name: "Pilgrim's Gate", kind: 'outdoor', w: 40, h: 16, map: [3, 6, 5, 2],
+    name: "Pilgrim's Gate", kind: 'outdoor', w: 40, h: 16, map: [3, 6, 5, 2], items: { '31,8': 'purse' },
     exits: { a: ['cloister', 'a'] },
     signs: {
       '6,12': '{M} to walk. {J} leaps. Hold it longer to leap higher.',
@@ -30,16 +30,16 @@ const ROOMS = {
       o.f(11, 12, 13, 12).f(14, 11, 16, 12);          // two steps
       o.p(20, 12, '^').p(21, 12, '^');                 // first hazard
       o.f(29, 9, 33, 9);                               // floating ledge
-      o.p(3, 12, 'B').p(6, 12, 'S').p(15, 10, 'S').p(24, 12, 'S').p(36, 12, 'S');
+      o.p(3, 12, 'B').p(6, 12, 'S').p(15, 10, 'S').p(24, 12, 'S').p(36, 12, 'S').p(31, 8, 'E');
       o.p(29, 12, 'r').p(31, 7, 'w');
     },
   },
   cloister: {
-    name: 'The Frozen Cloister', kind: 'indoor', w: 44, h: 26, map: [8, 2, 5, 6],
+    name: 'The Frozen Cloister', kind: 'indoor', w: 44, h: 26, map: [8, 2, 5, 6], items: { '3,11': 'sickle' },
     exits: { a: ['gate', 'a'], b: ['cellar', 'a'], c: ['gallery', 'a'], d: ['approach', 'a'] },
     signs: {
       '18,23': 'Braziers keep your flame. {R} beside a lit one to rest: it mends you, refills your flask, and wakes every foe you felled. Fall, and your chimes stay where you fell. They wait for you once.',
-      '36,23': 'Sheer ice, floor to rafters. The novices climbed it with claws of black iron.',
+      '36,23': 'Sheer ice, floor to rafters. The novices climbed it with claws of black iron. Hop onto the beam, press into the ice, and hold {J}.',
       '26,11': 'The bridge fell the night the Abbot went silent. Only the wind crosses now.',
     },
     build(o) {
@@ -49,8 +49,9 @@ const ROOMS = {
       o.f(24, 12, 39, 13);                             // upper-right gallery
       o.f(39, 12, 39, 20);                             // shaft wall
       o.f(40, 12, 42, 12, '=');                        // beam capping the shaft
+      o.f(40, 21, 42, 21, '=');                        // a beam to climb from, so the cellar door below never steals the climb
       o.f(7, 22, 10, 22).f(13, 20, 17, 20).f(27, 22, 31, 22);
-      o.p(21, 23, 'B').p(18, 23, 'S').p(36, 23, 'S').p(26, 11, 'S');
+      o.p(21, 23, 'B').p(18, 23, 'S').p(36, 23, 'S').p(26, 11, 'S').p(3, 11, 'E');
       o.p(12, 23, 'r').p(29, 21, 'r').p(24, 18, 'w').p(32, 8, 'm').p(9, 8, 'w');
     },
   },
@@ -72,7 +73,7 @@ const ROOMS = {
     },
   },
   gallery: {
-    name: 'Wind Gallery', kind: 'outdoor', w: 56, h: 20, map: [13, 2, 7, 2],
+    name: 'Wind Gallery', kind: 'outdoor', w: 56, h: 20, map: [13, 2, 7, 2], items: { '25,7': 'wraps' },
     exits: { a: ['cloister', 'c'] },
     signs: { '5,11': 'The wind took the sash-dancers first. Their sashes still snap on the far ledge.' },
     build(o) {
@@ -86,7 +87,7 @@ const ROOMS = {
       o.f(41, 7, 44, 7, '=').f(45, 8, 47, 8, '=');     // broken bridge
       o.f(48, 10, 54, 19);                             // far ledge
       o.f(7, 6, 10, 6).f(1, 4, 4, 4);                  // hidden perch (needs the sash)
-      o.p(3, 11, 'B').p(5, 11, 'S').p(52, 9, '2').p(2, 3, 'H');
+      o.p(3, 11, 'B').p(5, 11, 'S').p(52, 9, '2').p(2, 3, 'H').p(25, 7, 'E');
       o.p(25, 5, 'w').p(33, 9, 'r').p(44, 3, 'm').p(36, 6, 'w');
     },
   },

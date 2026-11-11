@@ -53,7 +53,7 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
       ok('a strike into the shield is blocked', knight.hp === hp0, 'hp ' + knight.hp + ' guard ' + knight.guard);
       knight.dir = -1; knight.turn = 0; knight.cd = 5; G.player.x = knight.x + knight.w + 6; step(1, {}); knight.dir = -1; step(3, { attack: true }); step(25, {});
       ok('a strike from behind lands', knight.hp < hp0, 'hp ' + knight.hp);
-      knight.dir = 1; knight.cd = 5; knight.stun = 0; knight.mode = 'walk'; G.player.x = knight.x + knight.w + 6; G.player.face = -1; G.player.res = R.G.save.relics.oath ? 6 : 8; const hp1 = knight.hp; step(3, { attack: true }); step(5, {});
+      knight.dir = 1; knight.cd = 5; knight.stun = 0; knight.mode = 'walk'; G.player.x = knight.x + knight.w + 6; G.player.face = -1; G.player.res = R.G.save.own.oath ? 6 : 8; const hp1 = knight.hp; step(3, { attack: true }); step(5, {});
       ok('a Peal breaks the guard', knight.hp < hp1 && knight.broken > 0, 'hp ' + knight.hp);
       knight.hp = 6; knight.broken = 0; knight.stun = 0; knight.mode = 'walk'; knight.cd = 0; knight.dir = 1; G.player.inv = 0; G.player.hp = 5; G.player.x = knight.x + knight.w + 20; step(90, {});
       ok('the thrust takes two embers', G.player.hp === 3, 'hp ' + G.player.hp + ' mode ' + knight.mode);
@@ -75,9 +75,9 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
       if (G.boss && G.boss.hp > 15) { G.boss.hp = 15; run(150, { chase: true, until: () => !G.boss || G.boss.hp <= 2 }); }
       if (G.boss) { G.boss.hp = 1; run(60, { chase: true, until: () => !G.boss }); }
       const has = (kind, got) => G.room.pickups.some((q) => q.kind === kind) || got; // the bot may already have grabbed it
-      ok('the Warden falls: gate opens, relic and Cinder Step appear', G.save.warden && !G.room.gateClosed && has('J', G.save.abilities.jump2) && has('K', G.save.relics.wardlamp), G.room.pickups.map((q) => q.kind).join(''));
+      ok('the Warden falls: gate opens, relic and Cinder Step appear', G.save.warden && !G.room.gateClosed && has('J', G.save.abilities.jump2) && has('K', G.save.own.wardlamp), G.room.pickups.map((q) => q.kind).join(''));
       for (const kind of ['K', 'J']) { const q = G.room.pickups.find((x) => x.kind === kind); if (!q) continue; G.player.x = q.x - 6; G.player.y = q.y - 11; step(6, {}); log.push('     toast: ' + document.getElementById('toast-title').textContent + ' / ' + document.getElementById('toast-body').textContent); document.getElementById('btn-ok').click(); step(2, {}); }
-      ok('Cinder Step and the Warden’s Lantern collected', G.save.abilities.jump2 && G.save.relics.wardlamp);
+      ok('Cinder Step and the Warden’s Lantern collected', G.save.abilities.jump2 && G.save.own.wardlamp);
       G.god = false; G.enemies = []; G.player.x = 12 * T; G.player.y = 24 * T - 22; step(30, {});
       step(1, { jump: true }); step(16, { jump: true }); const vyBefore = G.player.vy; step(1, {}); step(1, { jump: true }); const vy2 = G.player.vy; step(30, { jump: true });
       ok('the Cinder Step leaps again in mid-air', vy2 < -300 && !G.player.air2, 'vy before ' + vyBefore.toFixed(0) + ' after ' + vy2.toFixed(0));
@@ -91,17 +91,18 @@ const file = process.argv[2] || path.join(__dirname, '..', 'dist', 'index.html')
       if (G.boss && G.boss.hp > 23) { G.boss.hp = 23; run(200, { chase: true, until: () => !G.boss || G.boss.hp <= 2 }); }
       const phase = G.boss ? G.boss.phase : 2;
       if (G.boss) { G.boss.hp = 1; run(60, { chase: true, until: () => !G.boss }); }
-      ok('Varhelm falls and leaves his relic', G.save.knight && !G.room.gateClosed && (G.room.pickups.some((q) => q.kind === 'K') || G.save.relics.oath), 'phase reached ' + phase);
-      if (!document.getElementById('end').classList.contains('on')) {
-        step(200, {}); const oath = G.room.pickups.find((q) => q.kind === 'K');
-        if (oath) { G.player.x = oath.x - 6; G.player.y = oath.y - 11; step(6, {}); }
-        if (document.getElementById('toast').classList.contains('on')) document.getElementById('btn-ok').click(); step(80, {});
+      ok('Varhelm falls and leaves his relic', G.save.knight && !G.room.gateClosed && (G.room.pickups.some((q) => q.kind === 'K') || G.save.own.oath), 'phase reached ' + phase);
+      // pick up what he left (relic and greatsword), dismissing each card, until the end of the level shows
+      let t2 = '';
+      for (let i = 0; i < 900 && !document.getElementById('end').classList.contains('on'); i++) {
+        if (document.getElementById('toast').classList.contains('on')) { t2 += document.getElementById('toast-title').textContent + '; '; document.getElementById('btn-ok').click(); }
+        const loot = G.room.pickups[0]; if (loot && G.state === 'play') { G.player.x = loot.x - 6; G.player.y = loot.y - 11; }
+        step(1, {});
       }
-      const t2 = document.getElementById('toast-title').textContent;
       ok('Level 2 end card', document.getElementById('end').classList.contains('on') && document.getElementById('end-title').textContent === 'Sunset', t2 + ' / ' + document.getElementById('end-stats').textContent);
       document.getElementById('btn-keep').click(); G.god = false;
       G.enemies = []; G.player.res = 0; const k6 = R.spawnEnemy ? null : null;
-      ok('the Oath makes a Peal take six strikes', G.save.relics.oath && (function () { G.player.res = 6; return true; })(), 'pips ' + (G.save.relics.oath ? 6 : 8));
+      ok('the Oath makes a Peal take six strikes', G.save.own.oath && (function () { G.player.res = 6; return true; })(), 'pips ' + (G.save.own.oath ? 6 : 8));
 
       // 6. title, map and random play in Duskmarch
       G.save.brazier = { room: 'rampart', x: 19 * T + 20, y: 17 * T - 22, key: 'rampart:19,16' };

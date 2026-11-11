@@ -62,7 +62,8 @@ function updateEnemies(dt) {
 }
 
 function hurtEnemy(e, dmg, dirX, dirY) {
-  e.hp -= dmg; e.flash = 0.12; e.stun = 0.22;
+  const heavy = !!weapon().heavy;
+  e.hp -= dmg; e.flash = 0.12; e.stun = heavy ? 0.45 : 0.22; if (heavy) { dirX *= 1.5; G.shake = Math.max(G.shake, 4); }
   if (e.type === 'r' || FOES[e.type].dusk) { const kb = e.type === 'k' ? 70 : 140; e.vx = dirX * kb; e.vy = dirY < 0 ? -200 : -100; e.mode = e.type === 'k' ? 'walk' : e.mode; }
   else { e.vx = dirX * 190; e.vy = dirY * 190; e.cast = 0; }
   const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
@@ -76,6 +77,7 @@ function hurtEnemy(e, dmg, dirX, dirY) {
 
 // ---------- chimes: what the cold things drop ----------
 function dropChimes(x, y, total) {
+  if (eq('purse')) total = Math.round(total * 1.35);
   const n = Math.min(26, Math.max(1, Math.ceil(total / 5))); let left = total;
   for (let i = 0; i < n; i++) {
     const v = i === n - 1 ? left : Math.round(total / n); left -= v;

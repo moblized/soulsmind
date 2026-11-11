@@ -3,25 +3,26 @@
 const puppeteer = require('puppeteer-core'), path = require('path');
 const T = 24, feet = (ty) => ty * T - 22;
 const CASES = [
-  ['gate', {}, { x: 2 * T, y: feet(13) }, { exits: ['a'] }, {}],
+  ['gate', {}, { x: 2 * T, y: feet(13) }, { exits: ['a'] }, { pickups: ['purse'] }],
+  ['gate (back with Cinder Step)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'], pickups: ['purse'] }, {}],
   ['cloister', {}, { exit: 'a' }, { exits: ['a', 'b'] }, { exits: ['c', 'd'] }],
   ['cellar', {}, { exit: 'a' }, { pickups: ['1'] }, {}],
   ['cellar (in pit, no claws)', {}, { x: 29 * T, y: feet(16) }, { pickups: ['1'] }, { exits: ['a'] }],
   ['cellar (in pit, claws)', { claws: true }, { x: 29 * T, y: feet(16) }, { exits: ['a'] }, {}],
-  ['cloister', { claws: true }, { exit: 'b' }, { exits: ['a', 'b', 'c'] }, { exits: ['d'] }],
-  ['gallery', { claws: true }, { exit: 'a' }, { pickups: ['2'], exits: ['a'] }, { pickups: ['H'] }],
+  ['cloister', { claws: true }, { exit: 'b' }, { exits: ['a', 'b', 'c'] }, { exits: ['d'], pickups: ['sickle'] }],
+  ['gallery', { claws: true }, { exit: 'a' }, { pickups: ['2', 'wraps'], exits: ['a'] }, { pickups: ['H'] }],
   ['gallery (from far ledge)', { claws: true, dash: true }, { x: 51 * T, y: feet(10) }, { exits: ['a'], pickups: ['H'] }, {}],
-  ['cloister', { claws: true, dash: true }, { exit: 'c' }, { exits: ['a', 'b', 'c', 'd'] }, {}],
+  ['cloister', { claws: true, dash: true }, { exit: 'c' }, { exits: ['a', 'b', 'c', 'd'], pickups: ['sickle'] }, {}],
   ['approach', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b'] }, {}],
   ['approach (return)', { claws: true, dash: true }, { exit: 'b' }, { exits: ['a'] }, {}],
   ['sanctum', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b'], bell: true }, {}],
   ['sanctum (door still sealed)', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'] }, { exits: ['b'] }, { done: false }],
   // Level 2: arrives with claws and dash; the Cinder Step (jump2) waits behind the Barrow Warden
-  ['oldroad', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b', 'c'] }, {}],
-  ['barrow', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'], pickups: ['J'] }, { pickups: ['H'] }],
+  ['oldroad', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a', 'b', 'c'], pickups: ['mail'] }, {}],
+  ['barrow', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'], pickups: ['J', 'shroud'] }, { pickups: ['H'] }],
   ['barrow (from crypt floor)', { claws: true, dash: true }, { x: 12 * T, y: feet(24) }, { exits: ['a'], pickups: ['J'] }, {}],
   ['barrow (with Cinder Step)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'], pickups: ['J', 'H'] }, {}],
-  ['rampart', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'] }, { exits: ['b'] }],
+  ['rampart', { claws: true, dash: true }, { exit: 'a' }, { exits: ['a'], pickups: ['spear'] }, { exits: ['b'] }],
   ['rampart (with Cinder Step)', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a', 'b'] }, {}],
   ['rampart (from the Court)', { claws: true, dash: true, jump2: true }, { exit: 'b' }, { exits: ['a', 'b'] }, {}],
   ['court', { claws: true, dash: true, jump2: true }, { exit: 'a' }, { exits: ['a'] }, {}],
@@ -40,7 +41,6 @@ const CASES = [
       const R = window.__rimebell, { G, Input, T, STEP } = R;
       R.newGame(); G.state = 'pause'; Object.assign(G.save.abilities, { claws: false, dash: false, jump2: false }, ab);
       Object.assign(G.save, { boss: true, mini: true, warden: true, knight: true, done: true }, flags || {});
-      for (const k in G.save.relics) G.save.relics[k] = true;
       const room = R.loadRoom(roomId, start); G.enemies = []; G.state = 'pause';
       let seed = 987654321; const rnd = () => (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
       const seen = new Set(), queue = [], found = { exits: {}, pickups: {}, bell: false };
@@ -49,7 +49,7 @@ const CASES = [
         const cx = p.x + p.w / 2, ch = (room.grid[Math.floor((p.y + p.h / 2) / T)] || [])[Math.floor(cx / T)];
         if (ch && room.def.exits[ch]) { found.exits[ch] = 1; return true; }
         if (p.y > room.h * T + 40 || R.hazardHit(room, p)) return true;
-        for (const k of room.pickups) if (Math.abs(cx - k.x) < 16 && Math.abs(p.y + p.h / 2 - k.y) < 20) found.pickups[k.kind] = 1;
+        for (const k of room.pickups) if (Math.abs(cx - k.x) < 16 && Math.abs(p.y + p.h / 2 - k.y) < 20) found.pickups[k.kind === 'E' ? k.item : k.kind === 'K' ? 'relic' : k.kind] = 1;
         if (room.bell && Math.abs(cx - room.bell.x) < 30 && p.onGround) found.bell = true;
         return false;
       };

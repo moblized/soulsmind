@@ -58,12 +58,29 @@ h1 span { color: var(--ember); }
 #brazier .card p { font-size: 15px; margin: 0; color: var(--dim); }
 #brazier .card.lv { width: min(760px, 100%); flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 14px 22px; }
 .lv-head { flex: 1 1 250px; display: flex; flex-direction: column; gap: 8px; }
+.lv-head h2 { line-height: 0.9; }
+#brazier .card .bz-text { font-size: 14px; }
+.seg { display: flex; gap: 0; }
+.seg button { flex: 1 1 0; min-height: 40px; padding: 8px 10px; font-size: 14px; letter-spacing: 0.06em; background: rgba(7, 10, 18, 0.5); border-color: rgba(143, 211, 224, 0.25); }
+.seg button + button { border-left-width: 0; }
+.seg button.on { background: rgba(255, 171, 61, 0.16); border-color: var(--ember); color: #fff3d6; }
+.eq-list { display: flex; flex-direction: column; gap: 5px; }
+button.eq-row { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 1px 12px; text-align: left; text-transform: none; letter-spacing: 0.01em; padding: 6px 12px; min-height: 46px; align-items: center; }
+button.eq-row b { font-size: 16px; color: var(--snow); }
+button.eq-row span { grid-column: 1; font-size: 13px; color: var(--dim); line-height: 1.25; }
+button.eq-row i { grid-column: 2; grid-row: 1 / span 2; font-style: normal; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--frost); }
+button.eq-row.on { border-color: var(--ember); box-shadow: inset 4px 0 0 var(--ember); }
+button.eq-row.on i { color: var(--ember); }
+.eq-msg { margin: 2px 0 0 !important; font-size: 14px !important; color: #e98b6a !important; }
+.lv-sum dd { overflow-wrap: anywhere; }
 .lv-sum { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 2px 0 4px; font-variant-numeric: tabular-nums; }
 .lv-sum dt { color: var(--dim); font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; align-self: center; }
 .lv-sum dd { margin: 0; font-size: 18px; font-weight: 700; color: #f3e3b4; }
 .lv-sum dd.short { color: #e98b6a; }
 .lv-head .menu { margin-top: auto; }
 .lv-stats { flex: 1.3 1 300px; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.lv-stats .seg.cats { margin-bottom: 2px; position: sticky; top: 0; z-index: 1; background: var(--stone); }
+@media (orientation: landscape) { .lv-stats { max-height: calc(100vh - 76px); overflow-y: auto; justify-content: flex-start; } }
 .lv-row { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 10px; padding: 4px 6px; border: 1px solid rgba(143, 211, 224, 0.16); background: rgba(7, 10, 18, 0.45); }
 .lv-row.up { border-color: rgba(255, 171, 61, 0.55); }
 .lv-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -157,12 +174,12 @@ html:not(.app) .app-only { display: none; }
     <div class="lv-head">
       <p class="stage">Brazier</p>
       <h2>Rest</h2>
-      <p>Mended, and the flask is full. Everything you felled has stood up again.</p>
-      <dl class="lv-sum">
-        <dt>Level</dt><dd id="lv-level">1</dd>
-        <dt>Chimes</dt><dd id="lv-chimes">0</dd>
-        <dt>Next level</dt><dd id="lv-next">60 chimes</dd>
-      </dl>
+      <p class="bz-text">Mended, flask full. Everything you felled stands again.</p>
+      <div class="seg" role="tablist">
+        <button id="tab-level" role="tab" type="button" aria-selected="true">Level up</button>
+        <button id="tab-equip" role="tab" type="button" aria-selected="false">Equipment</button>
+      </div>
+      <dl class="lv-sum" id="lv-sum"></dl>
       <div class="menu">
         <button id="btn-lv-ok" class="primary" type="button">Level up</button>
         <button id="btn-leave" type="button">Leave</button>

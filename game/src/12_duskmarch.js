@@ -11,7 +11,7 @@ const COURT = { x0: T, x1: 26 * T, floor: 14 * T, ceil: 2 * T, trigger: 24 * T }
 // h = Barrow Hound, k = Oathbound Knight, q = Ash Archer, J = Cinder Step (behind the Warden)
 Object.assign(ROOMS, {
   oldroad: {
-    name: 'The Old Road', level: 2, kind: 'dusk', w: 52, h: 20, map: [10, 2, 7, 3],
+    name: 'The Old Road', level: 2, kind: 'dusk', w: 52, h: 20, map: [10, 2, 7, 3], items: { '2,6': 'mail' },
     exits: { a: ['sanctum', 'b'], b: ['barrow', 'a'], c: ['rampart', 'a'] },
     signs: {
       '43,17': 'DUSKMARCH. The sun over this kingdom began to set a hundred years ago and never finished. Its knights still keep their oaths to a king long dead.',
@@ -25,12 +25,12 @@ Object.assign(ROOMS, {
       o.f(18, 16, 20, 17).f(12, 13, 16, 13).f(5, 10, 9, 10).f(1, 7, 4, 7); // ruined stair to the ramparts
       o.f(36, 15, 38, 17);                              // a fallen wall
       o.p(25, 17, '^').p(26, 17, '^');                  // broken spears
-      o.p(46, 17, 'B').p(43, 17, 'S').p(28, 17, 'S');
+      o.p(46, 17, 'B').p(43, 17, 'S').p(28, 17, 'S').p(2, 6, 'E');
       o.p(33, 17, 'h').p(22, 17, 'k').p(14, 12, 'q').p(7, 17, 'h');
     },
   },
   barrow: {
-    name: 'The Barrow Crypt', level: 2, kind: 'crypt', w: 34, h: 26, map: [5, 4, 5, 4],
+    name: 'The Barrow Crypt', level: 2, kind: 'crypt', w: 34, h: 26, map: [5, 4, 5, 4], items: { '26,5': 'shroud' },
     exits: { a: ['oldroad', 'b'] },
     signs: {
       '30,7': 'The barrows keep the knights who would not stop fighting. Their warden still walks the lowest crypt, swinging the lantern that once rang the dead to sleep.',
@@ -44,12 +44,12 @@ Object.assign(ROOMS, {
       o.p(30, 22, 'G').p(30, 23, 'G');
       o.f(24, 6, 26, 7);                 // a knight's tomb
       o.f(10, 3, 12, 3, '=');            // a beam far above the crypt floor
-      o.p(28, 7, 'B').p(30, 7, 'S').p(3, 23, 'J').p(11, 2, 'H');
+      o.p(28, 7, 'B').p(30, 7, 'S').p(3, 23, 'J').p(11, 2, 'H').p(26, 5, 'E');
       o.p(25, 5, 'q').p(21, 7, 'h');
     },
   },
   rampart: {
-    name: 'Rampart Walk', level: 2, kind: 'dusk', w: 56, h: 22, map: [3, 0, 7, 3],
+    name: 'Rampart Walk', level: 2, kind: 'dusk', w: 56, h: 22, map: [3, 0, 7, 3], items: { '41,13': 'spear' },
     exits: { a: ['oldroad', 'c'], b: ['court', 'a'] },
     signs: {
       '47,16': 'The rampart road ends at the Court of the Unsetting Knight. He swore to guard the sun until it set.',
@@ -63,7 +63,7 @@ Object.assign(ROOMS, {
       o.f(1, 5, 3, 5);                   // the Court's door step
       o.f(8, 13, 10, 13, '=').f(4, 9, 6, 9, '='); // hanging stones
       o.f(40, 14, 41, 16).f(24, 14, 25, 16);      // watchtowers
-      o.p(50, 16, 'B').p(47, 16, 'S').p(19, 16, 'B').p(15, 16, 'S');
+      o.p(50, 16, 'B').p(47, 16, 'S').p(19, 16, 'B').p(15, 16, 'S').p(41, 13, 'E');
       o.p(40, 13, 'q').p(24, 13, 'q').p(37, 16, 'h').p(45, 16, 'k').p(26, 16, 'k');
     },
   },

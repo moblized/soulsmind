@@ -11,27 +11,46 @@ const levelCost = (L) => Math.round(40 + 18 * L + 2.2 * L * L); // chimes to go 
 const charLevel = (S) => 1 + S.stats.vit + S.stats.mig + S.stats.spi + S.stats.res;
 const shardCount = (S) => Object.keys(S.got).filter((k) => k.endsWith(':H')).length;
 const maxHpOf = (S) => 5 + shardCount(S) + S.stats.vit;
-const pealStrikes = (res, S) => Math.max(4, (S.relics.oath ? 6 : 8) - Math.floor(res / 2));
+const pealStrikes = (res, S) => Math.max(4, (S.equip.relics.indexOf('oath') >= 0 ? 6 : 8) - Math.floor(res / 2));
 // what the old brazier upgrades cost, refunded when an older save is loaded
 const OLD_UPS = { staff: [120, 300, 600], flask: [80, 160, 280, 480], lantern: [100, 200, 350, 560] };
-const RELICS = {
-  spine: { name: "Matriarch's Spine", what: 'Your strikes reach a third farther.' },
-  clapper: { name: 'The Swallowed Clapper', what: 'Your Peal mends one ember.' },
-  wardlamp: { name: "Warden's Lantern", what: 'Each drink from the flask mends three embers.' },
-  oath: { name: 'Oath of the Unsetting', what: 'Your Peal charges in six strikes instead of eight.' },
+// ---------- equipment: one weapon, one armour, three relics; changed at a brazier ----------
+const ITEMS = {
+  staff: { slot: 'weapon', name: 'Bell-staff', what: 'Even reach and speed. A good teacher.', dmg: 1, reach: 1, cd: 0.36 },
+  sickle: { slot: 'weapon', name: 'Rime Sickle', what: 'Light and very quick. Builds a Peal fast, hits soft.', dmg: 0.65, reach: 0.9, cd: 0.2 },
+  censer: { slot: 'weapon', name: "Abbot's Censer", what: 'Slow, crushing swings. Shields cannot stop it.', dmg: 1.9, reach: 1.05, cd: 0.62, heavy: true },
+  spear: { slot: 'weapon', name: 'Oathbound Spear', what: 'Reaches half again as far to the side.', dmg: 0.95, reach: 1.5, cd: 0.42, long: true },
+  greatsword: { slot: 'weapon', name: 'Dusk Greatsword', what: 'Huge, slow sweeps that hit hardest of all. Shields cannot stop it.', dmg: 2.6, reach: 1.35, cd: 0.8, heavy: true },
+  coat: { slot: 'armor', name: "Pilgrim's Coat", what: 'Plain wool. Nothing gained, nothing lost.' },
+  mail: { slot: 'armor', name: 'Oathbound Mail', what: 'Heavy blows take one ember instead of two. You move a little slower.', speed: 0.88 },
+  shroud: { slot: 'armor', name: 'Ashen Shroud', what: 'You move faster, and a dash slips through blows for twice as long.', speed: 1.1, dodge: 2 },
+  spine: { slot: 'relic', name: "Matriarch's Spine", what: 'Your strikes reach a third farther.' },
+  clapper: { slot: 'relic', name: 'The Swallowed Clapper', what: 'Your Peal mends one ember.' },
+  wardlamp: { slot: 'relic', name: "Warden's Lantern", what: 'Each drink from the flask mends three embers.' },
+  oath: { slot: 'relic', name: 'Oath of the Unsetting', what: 'Your Peal charges in six strikes instead of eight.' },
+  purse: { slot: 'relic', name: 'Chime Purse', what: 'Foes drop a third more chimes.' },
+  wraps: { slot: 'relic', name: 'Rimewalker Wraps', what: 'Spikes and icicles no longer hurt you.' },
 };
-// each boss: the save flag it sets, its relic, how many chimes it drops, and the ability it sits on (if any)
+const RELIC_SLOTS = 3;
+const SLOT_NAMES = { weapon: 'Weapon', armor: 'Armour', relic: 'Relics' };
+const eq = (id) => !!G.save && G.save.equip.relics.indexOf(id) >= 0;
+const weapon = () => ITEMS[(G.save && G.save.equip.weapon) || 'staff'];
+const armor = () => ITEMS[(G.save && G.save.equip.armor) || 'coat'];
+const RELICS = ITEMS; // boss relics are items too
+// each boss: the save flag it sets, its relic and weapon, how many chimes it drops, and the ability it sits on (if any)
 const BOSSES = {
   cellar: { flag: 'mini', spawn: () => spawnMatriarch(), A: () => PIT, relic: 'spine', chimes: 80, hides: '1', line: 'The pit falls quiet' },
-  sanctum: { flag: 'boss', spawn: null, A: () => ARENA, relic: 'clapper', chimes: 150, line: 'The Abbot is silent at last' },
+  sanctum: { flag: 'boss', spawn: null, A: () => ARENA, relic: 'clapper', item: 'censer', chimes: 150, line: 'The Abbot is silent at last' },
   barrow: { flag: 'warden', spawn: () => spawnWarden(), A: () => WARD, relic: 'wardlamp', chimes: 220, hides: 'J', line: 'The lantern goes dark' },
-  court: { flag: 'knight', spawn: () => spawnVarhelm(), A: () => COURT, relic: 'oath', chimes: 420, line: 'The sun over Duskmarch sets at last' },
+  court: { flag: 'knight', spawn: () => spawnVarhelm(), A: () => COURT, relic: 'oath', item: 'greatsword', chimes: 420, line: 'The sun over Duskmarch sets at last' },
 };
 const ENDS = {
   1: { stage: 'Level 1 complete', title: 'The First Bell', text: 'Its voice rolls down the mountain and wakes the snow from the eaves. Behind you, the west door of the sanctum grinds open onto a road that leads down into a kingdom at dusk.' },
   2: { stage: 'Level 2 complete', title: 'Sunset', text: 'Varhelm lowers his sword, and the sun over Duskmarch finally sets. In the first true dark in a hundred years, a light moves on the far mountains. More levels are coming.' },
 };
 function relicPickup(id, x, y) { return { kind: 'K', relic: id, key: 'relic:' + id, x, y }; }
+function itemPickup(id, x, y) { return { kind: 'E', item: id, key: 'item:' + id, x, y }; }
+function wearIfRoom(id) { const r = G.save.equip.relics; if (r.length >= RELIC_SLOTS || r.indexOf(id) >= 0) return false; r.push(id); return true; }
 const Store = {
   get() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
   set(v) { try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} },
@@ -39,15 +58,25 @@ const Store = {
 };
 function freshSave() {
   return {
-    v: 4, abilities: { claws: false, dash: false, jump2: false }, lit: { 'gate:3,12': 1 }, got: {}, visited: {},
+    v: 5, abilities: { claws: false, dash: false, jump2: false }, lit: { 'gate:3,12': 1 }, got: {}, visited: {},
     boss: false, mini: false, done: false, warden: false, knight: false, done2: false, time: 0, deaths: 0,
-    chimes: 0, echo: null, stats: { vit: 0, mig: 0, spi: 0, res: 0 }, relics: { spine: false, clapper: false, wardlamp: false, oath: false },
+    chimes: 0, echo: null, stats: { vit: 0, mig: 0, spi: 0, res: 0 },
+    own: { staff: true, coat: true }, equip: { weapon: 'staff', armor: 'coat', relics: [] },
     brazier: { room: 'gate', x: 3 * T + T / 2 + 8, y: 13 * T - 22, key: 'gate:3,12' },
   };
 }
 function normalizeSave(s) {
   const f = freshSave(); if (!s || typeof s !== 'object' || !ROOMS[(s.brazier || {}).room]) return f;
-  const n = Object.assign(f, s, { v: 4, abilities: Object.assign(f.abilities, s.abilities || {}), stats: Object.assign(f.stats, s.stats || {}), relics: Object.assign(f.relics, s.relics || {}) });
+  const n = Object.assign(f, s, { v: 5, abilities: Object.assign(f.abilities, s.abilities || {}), stats: Object.assign(f.stats, s.stats || {}),
+    own: Object.assign(f.own, s.own || {}), equip: Object.assign(f.equip, s.equip || {}) });
+  if (s.relics) { // older saves wore every relic at once; keep them all, wearing the first three
+    n.equip.relics = (n.equip.relics || []).slice();
+    for (const k in s.relics) if (s.relics[k] && ITEMS[k]) { n.own[k] = true; if (n.equip.relics.length < RELIC_SLOTS && n.equip.relics.indexOf(k) < 0) n.equip.relics.push(k); }
+    delete n.relics;
+  }
+  if (!n.own[n.equip.weapon] || !ITEMS[n.equip.weapon]) n.equip.weapon = 'staff';
+  if (!n.own[n.equip.armor] || !ITEMS[n.equip.armor]) n.equip.armor = 'coat';
+  n.equip.relics = (n.equip.relics || []).filter((k) => n.own[k] && ITEMS[k] && ITEMS[k].slot === 'relic').slice(0, RELIC_SLOTS);
   if (n.up) { // older saves bought fixed upgrades; give the chimes back so they can be spent on levels
     for (const k in OLD_UPS) for (let i = 0; i < (n.up[k] || 0); i++) n.chimes += OLD_UPS[k][i] || 0;
     delete n.up;
@@ -130,6 +159,7 @@ function loadRoom(id, spawn) {
       if (cfg && cfg.hides === ch && !S[cfg.flag]) room.hidden = pk; // a boss sits on it
       else if (!S.got[key]) room.pickups.push(pk);
     }
+    else if (ch === 'E') { const id = (def.items || {})[x + ',' + y]; if (id && !S.own[id]) room.pickups.push(itemPickup(id, x * T + T / 2, y * T + T / 2)); }
     else if (FOES[ch]) spawnEnemy(ch, x, y);
     else if (ch === 'Z') { /* the Abbot arrives when the hero steps in */ }
     else if (ch === 'L') room.bell = { x: x * T + T / 2, y: (y + 1) * T, active: !!S.boss, drop: S.boss ? 1 : 0, swing: 0, hitId: -1 };
@@ -145,7 +175,12 @@ function loadRoom(id, spawn) {
   for (const L in def.locks || {}) if (!S[def.locks[L]]) for (const t of room.exitTiles[L] || []) grid[t.y][t.x] = 'X';
   if (cfg) {
     if (!S[cfg.flag]) { if (cfg.spawn) cfg.spawn(); }
-    else if (!S.relics[cfg.relic]) { const A = cfg.A(); room.pickups.push(relicPickup(cfg.relic, A.x0 + 7 * T, A.floor - 14)); }
+    else {
+      const A = cfg.A();
+      // left where the boss fell, clear of the great bell
+      if (!S.own[cfg.relic]) room.pickups.push(relicPickup(cfg.relic, A.x0 + 5 * T, A.floor - 14));
+      if (cfg.item && !S.own[cfg.item]) room.pickups.push(itemPickup(cfg.item, A.x0 + 8 * T, A.floor - 14));
+    }
   }
   if (S.echo && S.echo.room === id) room.echo = S.echo;
   p.vx = 0; p.vy = 0; p.dashT = 0; p.atkT = 0; p.healT = 0; p.sliding = false; p.jumping = false; p.hurtT = 0; p.dead = false; p.hidden = false;
@@ -208,7 +243,9 @@ function bossDefeated() {
   const cfg = BOSSES[room.id], A = b.A;
   S[cfg.flag] = true; room.gateClosed = false;
   dropChimes(cx, cy, cfg.chimes);
-  if (!S.relics[cfg.relic]) room.pickups.push(relicPickup(cfg.relic, clamp(cx, A.x0 + 40, A.x1 - 40), A.floor - 14));
+  const lx = clamp(cx, A.x0 + 60, A.x1 - 60);
+  if (!S.own[cfg.relic]) room.pickups.push(relicPickup(cfg.relic, lx - (cfg.item ? 26 : 0), A.floor - 14));
+  if (cfg.item && !S.own[cfg.item]) room.pickups.push(itemPickup(cfg.item, lx + 26, A.floor - 14));
   if (room.hidden && !S.got[room.hidden.key]) { room.pickups.push(room.hidden); room.hidden = null; }
   if (room.bell) room.bell.active = true;
   banner(cfg.line);
@@ -224,12 +261,18 @@ function collect(k) {
   const S = G.save, p = G.player; S.got[k.key] = 1;
   G.room.pickups.splice(G.room.pickups.indexOf(k), 1);
   Sfx.play('pickup'); ringFx(k.x, k.y, 70, '#eafcff', 0.6); burst(k.x, k.y, 24, 150, k.kind === 'H' || k.kind === 'K' ? '#ffb347' : '#bff4ff', 0.9, 2.5);
-  if (k.kind === '1') { S.abilities.claws = true; toast('Ice Claws', 'Press toward a wall in mid-air to cling. {J} leaps away. Climb by leaping back onto the same wall, or between two.'); }
+  if (k.kind === '1') { S.abilities.claws = true; toast('Ice Claws', 'Press toward a wall in mid-air to cling. Keep pressing toward it and hold {J} to climb. Let go of the stick and press {J} to leap away.'); }
   else if (k.kind === '2') { S.abilities.dash = true; toast('Gale Sash', '{D} surges forward, on the ground or in the air. One surge per leap.'); layout(); }
   else if (k.kind === 'J') { S.abilities.jump2 = true; toast('Cinder Step', 'Press {J} again in mid-air to leap off a burst of embers. Once per leap; the ground or a wall gives it back.'); }
   else if (k.kind === 'K') {
-    S.relics[k.relic] = true; toast(RELICS[k.relic].name, 'Boss relic. ' + RELICS[k.relic].what);
+    S.own[k.relic] = true; const worn = wearIfRoom(k.relic);
+    toast(ITEMS[k.relic].name, 'Boss relic. ' + ITEMS[k.relic].what + (worn ? ' You are wearing it.' : ' Your relic slots are full: wear it at a brazier.'));
     if (k.relic === 'oath' && !S.done2) { S.done2 = true; later(0.6, () => showEnd(2), true); }
+  }
+  else if (k.kind === 'E') {
+    const it = ITEMS[k.item]; S.own[k.item] = true;
+    const worn = it.slot === 'relic' && wearIfRoom(k.item);
+    toast(it.name, (it.slot === 'weapon' ? 'Weapon. ' : it.slot === 'armor' ? 'Armour. ' : 'Relic. ') + it.what + (worn ? ' You are wearing it.' : ' Equip it at a brazier.'));
   }
   else { p.maxHp = maxHpOf(S); p.hp = p.maxHp; toast('Ember Shard', 'Your lantern holds one more ember.'); }
   persist();
@@ -248,7 +291,7 @@ function restAt(b) {
 }
 function closeBrazier() { if (G.state !== 'menu') return; show('brazier', false); G.state = 'play'; blurAll(); }
 // the level-up screen: allot points with + and -, see the cost and the effect, then confirm
-const Lv = { pend: { vit: 0, mig: 0, spi: 0, res: 0 } };
+const Lv = { pend: { vit: 0, mig: 0, spi: 0, res: 0 }, tab: 'level', cat: 'weapon', msg: '' };
 function pendLevels() { const q = Lv.pend; return q.vit + q.mig + q.spi + q.res; }
 function pendCost() { const L = charLevel(G.save); let c = 0; for (let i = 0; i < pendLevels(); i++) c += levelCost(L + i); return c; }
 function allot(k, d) {
@@ -265,11 +308,21 @@ function confirmLevel() {
   renderBrazier(); note('Level ' + charLevel(S));
 }
 function renderBrazier() {
+  const lvl = Lv.tab !== 'equip';
+  $('tab-level').setAttribute('aria-selected', String(lvl)); $('tab-equip').setAttribute('aria-selected', String(!lvl));
+  $('tab-level').classList.toggle('on', lvl); $('tab-equip').classList.toggle('on', !lvl);
+  $('btn-lv-ok').hidden = !lvl;
+  if (lvl) renderLevel(); else renderEquip();
+}
+function brazierTab(t) { Lv.tab = t; Lv.msg = ''; Sfx.play('ui'); renderBrazier(); }
+function summary(rows) {
+  const dl = $('lv-sum'); dl.textContent = '';
+  for (const [k, v, cls, id] of rows) { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = k; dd.textContent = v; if (cls) dd.className = cls; if (id) dd.id = id; dl.append(dt, dd); }
+}
+function renderLevel() {
   const S = G.save, L = charLevel(S), P = pendLevels(), cost = pendCost(), left = S.chimes - cost, next = levelCost(L + P);
   const keep = document.activeElement && document.activeElement.id;
-  $('lv-level').textContent = P ? L + ' \u2192 ' + (L + P) : String(L);
-  $('lv-chimes').textContent = P ? S.chimes + ' \u2192 ' + left : String(S.chimes);
-  $('lv-next').textContent = next + ' chimes'; $('lv-next').classList.toggle('short', left < next);
+  summary([['Level', P ? L + ' \u2192 ' + (L + P) : String(L), '', 'lv-level'], ['Chimes', P ? S.chimes + ' \u2192 ' + left : String(S.chimes), '', 'lv-chimes'], ['Next level', next + ' chimes', left < next ? 'short' : '', 'lv-next']]);
   const ok = $('btn-lv-ok'); ok.disabled = !P; ok.textContent = P ? 'Level up (' + cost + ')' : 'Level up';
   const box = $('lv-stats'); box.textContent = '';
   for (const k in STATS) {
@@ -286,6 +339,45 @@ function renderBrazier() {
     info.className = 'lv-info'; info.append(name, eff); row.append(minus, info, plus); box.appendChild(row);
   }
   try { const el = keep && $(keep); (el && !el.disabled ? el : $(P ? 'btn-lv-ok' : 'lv-vit-plus').disabled ? $('btn-leave') : $(P ? 'btn-lv-ok' : 'lv-vit-plus')).focus({ preventScroll: true }); } catch (e) {}
+}
+// equipment: pick a category, then tap an item to wear it (relics toggle, up to three)
+function renderEquip() {
+  const S = G.save, E = S.equip, keep = document.activeElement && document.activeElement.id;
+  summary([['Weapon', ITEMS[E.weapon].name], ['Armour', ITEMS[E.armor].name], ['Relics', E.relics.length + ' of ' + RELIC_SLOTS + ' worn']]);
+  const box = $('lv-stats'); box.textContent = '';
+  const seg = document.createElement('div'); seg.className = 'seg cats';
+  for (const c of ['weapon', 'armor', 'relic']) {
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'eq-cat-' + c; b.className = Lv.cat === c ? 'on' : '';
+    b.textContent = SLOT_NAMES[c] + (c === 'relic' ? ' ' + E.relics.length + '/' + RELIC_SLOTS : '');
+    b.setAttribute('aria-pressed', String(Lv.cat === c)); b.addEventListener('click', () => { Lv.cat = c; Lv.msg = ''; Sfx.play('ui'); renderEquip(); });
+    seg.appendChild(b);
+  }
+  box.appendChild(seg);
+  const list = document.createElement('div'); list.className = 'eq-list';
+  if (Lv.msg) { const m = document.createElement('p'); m.className = 'eq-msg'; m.setAttribute('role', 'status'); m.textContent = Lv.msg; list.appendChild(m); }
+  for (const id in ITEMS) {
+    const it = ITEMS[id]; if (it.slot !== Lv.cat || !S.own[id]) continue;
+    const on = it.slot === 'relic' ? E.relics.indexOf(id) >= 0 : E[it.slot] === id;
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'eq-' + id; b.className = 'eq-row' + (on ? ' on' : '');
+    b.setAttribute('aria-pressed', String(on));
+    const n = document.createElement('b'), w = document.createElement('span'), tag = document.createElement('i');
+    n.textContent = it.name; w.textContent = it.what; tag.textContent = on ? (it.slot === 'relic' ? 'Worn' : 'Equipped') : it.slot === 'relic' ? 'Wear' : 'Equip';
+    b.append(n, w, tag); b.addEventListener('click', () => equipItem(id)); list.appendChild(b);
+  }
+  if (!list.querySelector('.eq-row')) { const m = document.createElement('p'); m.className = 'eq-msg'; m.textContent = 'Nothing here yet. Bosses and hidden corners hold more.'; list.appendChild(m); }
+  box.appendChild(list);
+  try { const el = keep && $(keep); (el || $('eq-cat-' + Lv.cat)).focus({ preventScroll: true }); } catch (e) {}
+}
+function equipItem(id) {
+  const S = G.save, it = ITEMS[id], E = S.equip; Lv.msg = '';
+  if (!S.own[id]) return;
+  if (it.slot === 'relic') {
+    const i = E.relics.indexOf(id);
+    if (i >= 0) E.relics.splice(i, 1);
+    else if (E.relics.length >= RELIC_SLOTS) { Lv.msg = 'All three relic slots are full. Take one off first.'; Sfx.play('deny'); renderEquip(); return; }
+    else E.relics.push(id);
+  } else E[it.slot] = id;
+  persist(); Sfx.play('buy'); renderEquip();
 }
 
 function resolveCombat() {
@@ -338,7 +430,7 @@ function updateWorld(dt) {
   if (ex) { startTransition(ex[0], ex[1]); return; }
   // pits and icicles
   if (p.y > room.h * T + 40) { if (G.god) { p.x = p.safe.x; p.y = p.safe.y; p.vy = 0; } else { p.inv = 0; hurtPlayer(pcx, true); } return; }
-  if (p.inv <= 0 && hazardHit(room, p)) { hurtPlayer(pcx + p.face, true); return; }
+  if (p.inv <= 0 && !eq('wraps') && hazardHit(room, p)) { hurtPlayer(pcx + p.face, true); return; }
   // braziers, tablets, relics
   let nb = null;
   for (const b of room.braziers) if (Math.abs(pcx - b.x) < 18 && Math.abs(p.y + p.h - b.y) < 26) { if (!b.lit) kindle(b); nb = b; }
@@ -406,8 +498,8 @@ function newGame() { Store.clear(); G.save = freshSave(); beginPlay(); }
 function continueGame() { G.save = normalizeSave(Store.get()); beginPlay(); }
 function pause() {
   if (G.state !== 'play') return; G.state = 'pause'; show('pause', true); drawMap();
-  const S = G.save, own = Object.keys(RELICS).filter((k) => S.relics[k]).map((k) => RELICS[k].name + ': ' + RELICS[k].what);
-  $('relics').textContent = (own.length ? own.join(' ') : 'No relics yet. Bosses carry them.') + ' Level ' + charLevel(S) + ': ' + Object.keys(STATS).map((k) => STATS[k].name + ' ' + S.stats[k]).join(', ') + '. ' + S.chimes + ' chimes.';
+  const S = G.save, worn = S.equip.relics.map((k) => ITEMS[k].name + ': ' + ITEMS[k].what);
+  $('relics').textContent = weapon().name + ', ' + armor().name + '. ' + (worn.length ? 'Relics: ' + worn.join(' ') : 'No relics worn.') + ' Level ' + charLevel(S) + ': ' + Object.keys(STATS).map((k) => STATS[k].name + ' ' + S.stats[k]).join(', ') + '. ' + S.chimes + ' chimes.';
   if (G.app) { const v = appVersion(); $('up-note').textContent = v ? 'Version ' + v : ''; }
   Updater.showIfDue();
   const locked = !!(G.boss && bossAwake(G.boss)); $('btn-rest').disabled = locked;
@@ -547,6 +639,7 @@ function bindUI() {
   on('btn-pvib', toggleVib);
   on('btn-quit', () => { persist(); showTitle(); });
   on('btn-ok', dismissToast); on('btn-leave', closeBrazier); on('btn-lv-ok', confirmLevel);
+  on('tab-level', () => brazierTab('level')); on('tab-equip', () => brazierTab('equip'));
   on('btn-up-go', () => Updater.primary()); on('btn-up-later', () => Updater.hide());
   on('btn-pupdate', () => { const b = bridge(); if (b) { $('up-note').textContent = 'Checking GitHub for updates…'; b.checkUpdate(); } });
   on('btn-keep', () => { show('end', false); G.state = 'play'; blurAll(); });
@@ -588,7 +681,7 @@ function start(data) {
 window.__rimebell = {
   G, Input, ROOMS, PH, T, STEP, View, ARENA, Sfx, tick, loadRoom, updatePlayer, hazardHit, newPlayer, freshSave, beginPlay, newGame, showTitle,
   appUpdate, updateProgress, updateStatus, Updater,
-  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, levelCost, charLevel, maxHpOf, PIT, setRnd(f) { rnd = f; },
+  layout, render, advance, spawnBoss, spawnMatriarch, spawnWarden, spawnVarhelm, hurtBoss, WARD, COURT, LEVELS, openSeal, pause, resume, sleep, wake, back, restAt, closeBrazier, allot, confirmLevel, equipItem, brazierTab, ITEMS, weapon, armor, eq, levelCost, charLevel, maxHpOf, PIT, setRnd(f) { rnd = f; },
 };
 try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ save: G.save, playing: G.state !== 'title' && G.state !== 'boot' })); } catch (e) {}
 (function boot() {
