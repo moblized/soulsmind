@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!--__APP_HEAD__-->
+<title>Rimebell</title>
+<!--__FONTS__-->
+<style>
+:root {
+  /* One world, one theme: a cold blue monastery where the hero's ember is the only warm thing on screen.
+     Layout: full-bleed game canvas; menus sit low and left, cards sit over the play area. */
+  --night: #070a12;
+  --stone: #0d1322;
+  --frost: #8fd3e0;
+  --snow: #e6f1f6;
+  --dim: rgba(230, 241, 246, 0.64);
+  --ember: #ffab3d;
+  --display: "Grenze Gotisch", "Luminari", "Palatino Linotype", serif;
+  --body: "Alegreya Sans", "Gill Sans", "Trebuchet MS", sans-serif;
+  --area-h: 100%;
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; background: var(--night); color: var(--snow); font-family: var(--body); overflow: hidden; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.overlay { position: fixed; inset: 0; display: none; z-index: 5; box-sizing: border-box; }
+.overlay.on { display: flex; }
+button { font: 500 17px/1.1 var(--body); letter-spacing: 0.07em; text-transform: uppercase; color: var(--snow); background: rgba(13, 19, 34, 0.78); border: 1px solid rgba(143, 211, 224, 0.38); border-radius: 2px; padding: 13px 20px; min-height: 48px; cursor: pointer; touch-action: manipulation; }
+button:hover { border-color: var(--frost); }
+button:focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; }
+button.primary { border-color: var(--ember); color: #fff3d6; box-shadow: inset 4px 0 0 var(--ember); }
+button.quiet { background: transparent; border-color: transparent; color: var(--dim); text-transform: none; letter-spacing: 0.02em; padding: 13px 10px; }
+button[hidden] { display: none; }
+
+#title { align-items: flex-end; justify-content: flex-start; padding: clamp(18px, 5vw, 56px); background: linear-gradient(90deg, rgba(5, 7, 13, 0.9) 0%, rgba(5, 7, 13, 0.55) 46%, rgba(5, 7, 13, 0) 80%); }
+.titleblock { display: flex; flex-direction: column; gap: clamp(6px, 1.6vh, 14px); max-width: 620px; }
+.stage { margin: 0; font-size: 14px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--frost); }
+h1 { margin: 0; font-family: var(--display); font-weight: 500; font-size: clamp(54px, min(17vw, 27vh), 132px); line-height: 0.84; letter-spacing: 0.005em; color: var(--snow); text-shadow: 0 0 46px rgba(255, 171, 61, 0.3); }
+h1 span { color: var(--ember); }
+.tag { margin: 0 0 clamp(4px, 1.4vh, 12px); font-size: clamp(16px, 2.6vh + 6px, 21px); color: var(--dim); max-width: 26em; }
+.menu { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.turn { display: none; margin: 4px 0 0; font-size: 15px; color: var(--frost); }
+@media (orientation: portrait) and (pointer: coarse) { .turn { display: block; } }
+
+#pause, #end { align-items: center; justify-content: center; padding: 16px; background: rgba(5, 7, 13, 0.8); }
+.panel { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px 28px; width: min(680px, 100%); max-height: 100%; overflow: auto; padding: clamp(16px, 3vw, 28px); background: var(--stone); border: 1px solid rgba(143, 211, 224, 0.28); box-sizing: border-box; }
+.panel h2 { margin: 0 0 8px; font-family: var(--display); font-weight: 500; font-size: clamp(30px, 6vh + 8px, 46px); line-height: 1; }
+.panel p { margin: 0; color: var(--dim); font-size: 16px; line-height: 1.4; }
+#map { display: block; width: 100%; height: 118px; margin-top: 10px; background: rgba(7, 10, 18, 0.6); border: 1px solid rgba(143, 211, 224, 0.18); }
+.stack { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.stack .row { display: flex; gap: 4px; flex-wrap: wrap; }
+@media (max-width: 560px) and (orientation: portrait) { .panel { grid-template-columns: 1fr; } }
+
+#toast { align-items: center; justify-content: center; padding: 16px; height: var(--area-h); background: rgba(5, 7, 13, 0.55); }
+#brazier { align-items: center; justify-content: center; padding: 12px; background: rgba(5, 7, 13, 0.72); }
+#brazier .card { width: min(640px, 100%); max-height: 100%; overflow: auto; gap: 8px; padding: 16px 20px; }
+#brazier .card h2 { font-size: clamp(30px, 8vh, 40px); }
+#brazier .card p { font-size: 15px; margin: 0; color: var(--dim); }
+#bz-chimes { color: #f3e3b4 !important; font-weight: 700; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+.ups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
+button.up { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; text-transform: none; letter-spacing: 0.01em; padding: 10px 12px; min-height: 84px; }
+button.up b { font-size: 16px; font-weight: 700; color: var(--snow); }
+button.up span { font-size: 14px; color: var(--dim); }
+button.up i { font-style: normal; font-size: 14px; color: var(--ember); font-variant-numeric: tabular-nums; margin-top: auto; }
+button.up:disabled { opacity: 0.45; cursor: default; border-color: rgba(143, 211, 224, 0.18); }
+@media (max-width: 560px) and (orientation: portrait) { .ups { grid-template-columns: 1fr; } button.up { min-height: 0; } }
+#relics { margin-top: 8px !important; font-size: 14px !important; }
+.app .fs { display: none; }
+.card { width: min(440px, 100%); padding: 20px 22px; background: var(--stone); border: 1px solid rgba(143, 211, 224, 0.3); border-top: 3px solid var(--ember); box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.card h2 { margin: 0; font-family: var(--display); font-weight: 500; font-size: 38px; line-height: 1; color: var(--ember); }
+.card p { margin: 0 0 4px; font-size: 17px; line-height: 1.4; color: var(--snow); }
+#end .card { width: min(520px, 100%); }
+#end .card h2 { color: var(--snow); font-size: clamp(38px, 9vh, 58px); }
+#end-stats { color: var(--frost); font-variant-numeric: tabular-nums; font-size: 15px; letter-spacing: 0.04em; }
+
+#caption { position: fixed; z-index: 3; left: 50%; top: 62px; transform: translateX(-50%); width: max-content; max-width: min(560px, 84vw); padding: 9px 15px; background: rgba(7, 10, 18, 0.82); border-left: 2px solid var(--ember); font-size: 16px; line-height: 1.38; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-sizing: border-box; }
+#caption.on { opacity: 1; }
+#roomname, #note { position: fixed; z-index: 3; left: 0; right: 0; text-align: center; opacity: 0; pointer-events: none; }
+#roomname { top: calc(var(--area-h) * 0.22); font-family: var(--display); font-weight: 300; font-size: clamp(28px, 6vw, 50px); letter-spacing: 0.04em; text-shadow: 0 2px 18px rgba(5, 7, 13, 0.9); }
+#note { top: calc(var(--area-h) * 0.4); font-size: 15px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ember); text-shadow: 0 1px 10px rgba(5, 7, 13, 0.9); }
+#roomname.show { animation: rise 2.8s ease both; }
+#note.show { animation: rise 1.8s ease both; }
+@keyframes rise { 0% { opacity: 0; transform: translateY(8px); } 14% { opacity: 1; transform: none; } 72% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { @keyframes rise { 0% { opacity: 0; } 14% { opacity: 1; } 72% { opacity: 1; } 100% { opacity: 0; } } }
+#safe { position: fixed; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+#title { padding-left: max(clamp(18px, 5vw, 56px), env(safe-area-inset-left)); }
+#pause, #end, #toast, #brazier { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+html:not(.app) .app-only { display: none; }
+#fatal { position: fixed; z-index: 9; left: 16px; right: 16px; top: 16px; padding: 12px 14px; background: #2a1414; border: 1px solid #b4543c; color: #ffd9c9; font-size: 15px; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Rimebell game screen"></canvas>
+<div id="roomname" aria-live="polite"></div>
+<div id="note"></div>
+<div id="caption" role="status"></div>
+
+<div class="overlay on" id="title">
+  <div class="titleblock">
+    <p class="stage">Stage one · The Lower Cloister</p>
+    <h1>Rime<span>bell</span></h1>
+    <p class="tag">A hundred winters of silence. One small flame.</p>
+    <div class="menu">
+      <button id="btn-continue" class="primary" type="button" hidden>Continue</button>
+      <button id="btn-new" type="button">New journey</button>
+      <button id="btn-sound" class="quiet" type="button">Sound: on</button>
+      <button id="btn-full" class="quiet fs" type="button">Fullscreen</button>
+    </div>
+    <p class="turn">Plays best with the phone turned sideways.</p>
+  </div>
+</div>
+
+<div class="overlay" id="pause">
+  <div class="panel">
+    <div>
+      <h2>Paused</h2>
+      <p id="map-name"></p>
+      <canvas id="map" aria-label="Map of the rooms you have found"></canvas>
+      <p id="relics"></p>
+    </div>
+    <div class="stack">
+      <button id="btn-resume" class="primary" type="button">Resume</button>
+      <button id="btn-rest" type="button">Walk back to last brazier</button>
+      <button id="btn-quit" type="button">Save and quit to title</button>
+      <div class="row">
+        <button id="btn-psound" class="quiet" type="button">Sound: on</button>
+        <button id="btn-pvib" class="quiet app-only" type="button">Vibration: on</button>
+        <button id="btn-pfull" class="quiet fs" type="button">Fullscreen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="brazier">
+  <div class="card">
+    <p class="stage">Brazier</p>
+    <h2>Rest</h2>
+    <p>Mended, and the flask is full. Everything you felled has stood up again.</p>
+    <p id="bz-chimes"></p>
+    <div class="ups" id="bz-ups"></div>
+    <button id="btn-leave" class="primary" type="button">Leave</button>
+  </div>
+</div>
+
+<div class="overlay" id="toast">
+  <div class="card">
+    <h2 id="toast-title"></h2>
+    <p id="toast-body"></p>
+    <button id="btn-ok" class="primary" type="button">Continue</button>
+  </div>
+</div>
+
+<div class="overlay" id="end">
+  <div class="card">
+    <p class="stage">End of stage one</p>
+    <h2>The First Bell</h2>
+    <p>Its voice rolls down the mountain and wakes the snow from the eaves. Far above, in the dark of the upper halls, something answers.</p>
+    <p id="end-stats"></p>
+    <div class="menu">
+      <button id="btn-keep" class="primary" type="button">Keep exploring</button>
+      <button id="btn-end-title" type="button">Title</button>
+    </div>
+  </div>
+</div>
+<div id="safe"></div>
+<div id="fatal" hidden></div>
+<script>
+(function () {
+'use strict';
+/*__GAME__*/
+})();
+</script>
+</body>
+</html>

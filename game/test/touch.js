@@ -1,0 +1,32 @@
+// Real touch events through the browser: tap New journey, drag the stick right, tap JUMP and STRIKE.
+const puppeteer = require('puppeteer-core'), path = require('path');
+(async () => {
+  const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--disable-gpu'] });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+  await page.setRequestInterception(true);
+  page.on('request', (r) => (r.url().startsWith('file:') ? r.continue() : r.abort()));
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('file://' + path.join(__dirname, '..', 'dist', 'index.html'), { waitUntil: 'domcontentloaded' });
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  await wait(400);
+  await page.tap('#btn-new'); await wait(900);
+  const s0 = await page.evaluate(() => { const R = window.__rimebell; R.G.enemies = []; return { state: R.G.state, x: R.G.player.x, device: R.Input.device, audio: R.Sfx.ctx ? R.Sfx.ctx.state : 'none' }; });
+  const stick = await page.touchscreen.touchStart(120, 300); await wait(60);
+  await stick.move(175, 300); await wait(700);
+  const s1 = await page.evaluate(() => { const R = window.__rimebell; return { x: R.G.player.x, touch: { ...R.Input.touch }, y: R.G.player.y }; });
+  const btn = await page.evaluate(() => window.__rimebell.View.btn);
+  const j = await page.touchscreen.touchStart(btn.jump.x, btn.jump.y); await wait(180);
+  const s2 = await page.evaluate(() => { const R = window.__rimebell; return { y: R.G.player.y, vy: R.G.player.vy, jumpHeld: R.Input.touch.jump }; });
+  await j.end(); await wait(600);
+  const a = await page.touchscreen.touchStart(btn.attack.x, btn.attack.y); await wait(50);
+  const s3 = await page.evaluate(() => { const R = window.__rimebell; return { atkT: R.G.player.atkT, atkId: R.G.player.atkId }; });
+  await a.end(); await stick.move(120, 240); await wait(100);
+  const s4 = await page.evaluate(() => ({ ...window.__rimebell.Input.touch }));
+  await stick.end(); await wait(100);
+  const p = await page.touchscreen.touchStart(btn.pause.x, btn.pause.y); await wait(60); await p.end(); await wait(200);
+  const s5 = await page.evaluate(() => ({ state: window.__rimebell.G.state, touch: { ...window.__rimebell.Input.touch } }));
+  await page.screenshot({ path: path.join(__dirname, 'touch_pause.png') });
+  console.log(JSON.stringify({ s0, s1, s2, s3, s4, s5, errors }, null, 1));
+  await browser.close();
+})().catch((e) => { console.error(e); process.exit(1); });

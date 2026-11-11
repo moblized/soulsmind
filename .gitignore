@@ -1,0 +1,6 @@
+build/
+game/node_modules/
+game/dist/
+game/test/*.png
+android/tools/icon-preview.png
+*.idsig
